@@ -47,7 +47,7 @@ public class CambioEstadoBolsin {
                 "estado=" + (estado != null ? estado.getNombre() : "null") +
                 ", inicio=" + fechaHoraInicio +
                 ", fin=" + fechaHoraFin +
-                ", responsable=" + (responsable != null ? responsable.getNombre() : "N/A") +
+                ", responsable=" + (responsable != null ? responsable.toString() : "N/A") +
                 '}';
     }
 }

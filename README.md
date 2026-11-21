@@ -1,7 +1,7 @@
 # Proyecto Práctico de Aplicación Integrador (PPAI) - 2da Entrega: Diseño e Implementación
 **Universidad Tecnológica Nacional – Facultad Regional Córdoba (UTN-FRC)**  
 **Cátedra:** Diseño de Sistemas de Información (DSI)  
-**Grupo:** Grupo 12 (Grupo Par)  
+**Grupo:** Grupo 8 (Grupo Par)  
 **Caso de Estudio:** Bolsines (Comisiones Médicas)  
 **Caso de Uso Asignado:** **CU 28: Registrar recepción de bolsín**  
 **Máquina de Estados Asignada:** **Documentación (Patrón GoF State)**  
@@ -28,19 +28,21 @@ El diseño respeta de manera estricta el patrón arquitectónico **Boundary - Co
 src/main/java/com/utn/bolsines/
 ├── Main.java                                <--- Punto de entrada del sistema
 ├── pantallas/                               <--- Capa FRONTERA / BOUNDARY
+│   ├── PantallaLogin.java                   <--- Inicio de sesión interactivo y selección de empleado
 │   ├── PantallaRecepcionBolsin.java         <--- GUI interactiva de escritorio (Swing)
-│   └── VisorBaseDatosDialog.java            <--- Visor de auditoría de SQLite en vivo
+│   ├── DialogoCrearBolsin.java              <--- Diálogo modal para registrar y enviar nuevos bolsines
+│   └── VisorBaseDatosDialog.java            <--- Visor de auditoría de SQLite en vivo (Bolsín, Remito, Doc)
 ├── gestores/                                <--- Capa CONTROLADOR / GESTOR
-│   └── GestorRecepcionBolsin.java           <--- Orquestador del flujo del CU 28
+│   └── GestorRecepcionBolsin.java           <--- Orquestador del flujo del CU 28 y filtro flexible
 ├── entidades/                               <--- Capa DOMINIO / ENTIDADES
 │   ├── Bolsin.java                          <--- Contexto de Bolsín (Patrón Experto)
 │   ├── Remito.java                          <--- Jerarquía en cascada
 │   ├── DetalleRemito.java
 │   ├── Documentacion.java                   <--- Contexto del Patrón STATE (GoF)
-│   ├── CambioEstadoBolsin.java              <--- Trazabilidad histórica de estados
-│   ├── CambioEstadoDocumentacion.java       <--- Trazabilidad histórica de estados
+│   ├── CambioEstadoBolsin.java              <--- Trazabilidad histórica con legajo de responsable
+│   ├── CambioEstadoDocumentacion.java       <--- Trazabilidad histórica con legajo de responsable
 │   ├── ComisionMedica.java
-│   ├── Empleado.java
+│   ├── Empleado.java                        <--- Identificador, legajo y asignación a CM
 │   ├── Sesion.java
 │   ├── TipoDocumento.java
 │   ├── Archivo.java
@@ -87,11 +89,14 @@ El rediseño del CU 28 aplica el patrón **State** de Gamma (GoF) sobre la clase
 
 ## 4. Flujos Implementados y Verificados
 
-El sistema implementa el **Flujo Básico** y **5 Flujos Alternativos** especificados en el Requerimiento Funcional:
+El sistema implementa el **Flujo Básico** y **5 Flujos Alternativos** especificados en el Requerimiento Funcional, junto con las funcionalidades clave de la 2da Entrega:
 
-| Flujo | Opción / Acción | Descripción y Comportamiento del Patrón State |
+| Flujo / Funcionalidad | Opción / Acción | Descripción y Comportamiento del Sistema |
 | :--- | :--- | :--- |
-| **Flujo Básico** | **Opción 1: Contenido igual al registrado** | Todo el contenido llega conforme. El Bolsín pasa a *Recibido en CM Destino*, los Remitos a *Recibido y Aceptado*, y todas las documentaciones transicionan a **`Recibida y Aceptada`**. |
+| **Inicio de Sesión (Login)** | **Autenticación y Selección de CM** | Pantalla simple y amigable (`PantallaLogin.java`) para seleccionar al empleado y validar credenciales. Preselecciona a Ana González (CM Villa María). Permite además *Cerrar Sesión* desde la interfaz principal para cambiar de operador. |
+| **Filtro Flexible de Precinto** | **Búsqueda completa o sólo numérica** | El Gestor (`GestorRecepcionBolsin.coincidePrecinto`) admite tanto el formato completo (ej: `PREC-445566` o `PREC445566`) como sólo los números (ej: `445566` o `44`), insensible a mayúsculas/minúsculas. |
+| **Creación de Bolsines en Vivo** | **Botón `➕ Crear Nuevo Bolsín`** | Diálogo modal (`DialogoCrearBolsin.java`) para dar de alta bolsines con remito y documentación asociada con numeración autoincremental, persistiendo inmediatamente en SQLite para generar nuevos casos de prueba. |
+| **Flujo Básico** | **Opción 1: Contenido igual al registrado** | Todo el contenido llega conforme. En el **Paso 11**, el Bolsín pasa a *Recibido en CM Destino*, los Remitos a *Recibido y Aceptado*, y todas las documentaciones transicionan a **`Recibida y Aceptada`**, registrando y exhibiendo el **Legajo y Nombre** del empleado responsable. |
 | **Flujo Alternativo A1** | **Precinto no encontrado** | El usuario filtra por un precinto inexistente en la barra superior. El sistema emite advertencia de *"No se encontró bolsín con el precinto ingresado"* sin alterar el sistema. |
 | **Flujo Alternativo A2** | **CM Origen no encontrada** | El usuario filtra por un origen que no tiene bolsines enviados hacia su CM. El sistema emite advertencia. |
 | **Flujo Alternativo A3** | **Opción 2: Documentación faltante** | El operador tilda cuál documento no llegó físicamente. El documento faltante ejecuta `noRecibir(...)` y pasa a **`No Recibido`** mediante el Patrón State. Los demás pasan a `Recibida y Aceptada`. |
@@ -134,9 +139,14 @@ En la misma pantalla del sistema, hacé clic en el botón amarillo:
 ```
 [ 📊 Ver Base de Datos en Vivo ]
 ```
-Se abre una ventana paralela con las tablas de SQLite en tiempo real:
-* **Pestaña 1:** Muestra las tablas `bolsin` y `documentacion` con sus columnas `estado_actual`.
-* **Pestaña 2:** Muestra la tabla `cambio_estado_documentacion` con todas las transiciones históricas (`fecha_hora_inicio`, `fecha_hora_fin` y responsable).
+Se abre una ventana paralela (`VisorBaseDatosDialog.java`) con las tablas de SQLite en tiempo real:
+* **Pestaña 1 (Estados Actuales):** Muestra las 3 tablas centrales del circuito:
+  * `bolsin`: Estado actual en BD (*Recibido en CM Destino* / *Enviado*), peso y precinto.
+  * `remito`: Estado actual en BD (*Recibido y Aceptado* / *En Bolsín Enviado*), emisor y destino.
+  * `documentacion`: Estado actual en BD (*Recibida y Aceptada*, *No Recibido*, etc. bajo el Patrón State).
+* **Pestaña 2 (Historial de Estados y Trazabilidad):**
+  * `cambio_estado_documentacion`: Muestra todas las transiciones con `fecha_hora_inicio`, `fecha_hora_fin` y la columna **Responsable (Legajo y Nombre)** (ej: `Ana González (Legajo: LEG-2002)`).
+  * `cambio_estado_bolsin`: Muestra el historial del bolsín con la identificación del responsable por legajo.
 * Al confirmar una recepción en la pantalla principal, hacé clic en **"↻ Actualizar Datos de SQLite"** en el visor y verás cómo las filas cambian de estado inmediatamente.
 
 ### Forma 2: Con DB Browser for SQLite (Software externo)

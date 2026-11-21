@@ -64,6 +64,10 @@ public class RepositorioBolsin {
         return empleados;
     }
 
+    public List<Empleado> obtenerTodosLosEmpleados() {
+        return obtenerEmpleados();
+    }
+
     public Map<Integer, ComisionMedica> obtenerComisionesMap() {
         Map<Integer, ComisionMedica> mapa = new HashMap<>();
         String sql = "SELECT id, codigo, nombre, direccion, coordenadas, email FROM comision_medica";
@@ -351,6 +355,134 @@ public class RepositorioBolsin {
             } catch (SQLException e) {
                 conn.rollback();
                 System.err.println("Error en transacción SQLite: " + e.getMessage());
+                e.printStackTrace();
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error de conexión a BD SQLite: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public List<ComisionMedica> obtenerComisiones() {
+        return new ArrayList<>(obtenerComisionesMap().values());
+    }
+
+    public List<TipoDocumento> obtenerTiposDocumento() {
+        return new ArrayList<>(obtenerTiposDocumentoMap().values());
+    }
+
+    public int obtenerMaxId(String tabla) {
+        String sql = "SELECT COALESCE(MAX(id), 0) + 1 AS siguiente FROM " + tabla;
+        try (Connection conn = ConexionBD.getConexion();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt("siguiente");
+            }
+        } catch (SQLException ignored) {}
+        return 1;
+    }
+
+    /**
+     * Persiste en SQLite un nuevo bolsín creado desde la interfaz junto con su remito,
+     * detalle, documentación y sus correspondientes cambios de estado iniciales.
+     */
+    public boolean crearNuevoBolsinConRemitoYDoc(Bolsin bolsin, Empleado emisor) {
+        String insBolsin = "INSERT INTO bolsin (id, numero_identificador, numero_precinto, fecha_alta, peso, id_cm_origen, id_cm_destino, estado_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        String insCeBolsin = "INSERT INTO cambio_estado_bolsin (id_bolsin, estado, fecha_hora_inicio, fecha_hora_fin, id_empleado_responsable) VALUES (?, ?, ?, NULL, ?)";
+
+        String insRemito = "INSERT INTO remito (id, id_bolsin, numero_remito, fecha_hora_alta, id_empleado_emisor, id_cm_destino, estado) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String insDetalle = "INSERT INTO detalle_remito (id, id_remito, cantidad, descripcion) VALUES (?, ?, ?, ?)";
+
+        String insDoc = "INSERT INTO documentacion (id, id_detalle_remito, numero_identificador, asunto, fecha_pase, id_tipo_documento, id_cm_origen, estado_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        String insCeDoc = "INSERT INTO cambio_estado_documentacion (id_documentacion, estado, fecha_hora_inicio, fecha_hora_fin, id_empleado_responsable) VALUES (?, ?, ?, NULL, ?)";
+
+        String fechaIso = bolsin.getFechaAlta() != null ? bolsin.getFechaAlta().toString() : LocalDateTime.now().toString();
+
+        try (Connection conn = ConexionBD.getConexion()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Insertar Bolsín
+                try (PreparedStatement ps = conn.prepareStatement(insBolsin)) {
+                    ps.setInt(1, bolsin.getId());
+                    ps.setLong(2, bolsin.getNumeroIdentificador());
+                    ps.setString(3, bolsin.getNumeroPrecinto());
+                    ps.setString(4, fechaIso);
+                    ps.setDouble(5, bolsin.getPeso());
+                    ps.setInt(6, bolsin.getCmOrigen() != null ? bolsin.getCmOrigen().getId() : 1);
+                    ps.setInt(7, bolsin.getCmDestino() != null ? bolsin.getCmDestino().getId() : 2);
+                    ps.setString(8, bolsin.getEstadoActual() != null ? bolsin.getEstadoActual().getNombre() : "Enviado");
+                    ps.executeUpdate();
+                }
+
+                // 2. Insertar CambioEstadoBolsin
+                try (PreparedStatement ps = conn.prepareStatement(insCeBolsin)) {
+                    ps.setInt(1, bolsin.getId());
+                    ps.setString(2, bolsin.getEstadoActual() != null ? bolsin.getEstadoActual().getNombre() : "Enviado");
+                    ps.setString(3, fechaIso);
+                    ps.setInt(4, emisor != null ? emisor.getId() : 10);
+                    ps.executeUpdate();
+                }
+
+                // 3. Insertar Remitos, Detalles y Documentaciones
+                int idDetalleCounter = obtenerMaxId("detalle_remito");
+                for (Remito rem : bolsin.getRemitos()) {
+                    try (PreparedStatement ps = conn.prepareStatement(insRemito)) {
+                        ps.setInt(1, rem.getId());
+                        ps.setInt(2, bolsin.getId());
+                        ps.setLong(3, rem.getNumero());
+                        ps.setString(4, rem.getFechaHoraAlta() != null ? rem.getFechaHoraAlta().toString() : fechaIso);
+                        ps.setInt(5, rem.getEmpleadoEmisor() != null ? rem.getEmpleadoEmisor().getId() : (emisor != null ? emisor.getId() : 10));
+                        ps.setInt(6, rem.getCmDestino() != null ? rem.getCmDestino().getId() : 2);
+                        ps.setString(7, rem.getEstado() != null ? rem.getEstado().getNombre() : "En Bolsín Enviado");
+                        ps.executeUpdate();
+                    }
+
+                    for (DetalleRemito det : rem.getDetalles()) {
+                        int drId = det.getId() > 0 ? det.getId() : idDetalleCounter++;
+                        det.setId(drId);
+                        try (PreparedStatement ps = conn.prepareStatement(insDetalle)) {
+                            ps.setInt(1, drId);
+                            ps.setInt(2, rem.getId());
+                            ps.setInt(3, det.getCantidad() > 0 ? det.getCantidad() : 1);
+                            ps.setString(4, det.getDescripcion() != null ? det.getDescripcion() : "Detalle remito");
+                            ps.executeUpdate();
+                        }
+
+                        Documentacion doc = det.getDocumentacion();
+                        if (doc != null) {
+                            try (PreparedStatement ps = conn.prepareStatement(insDoc)) {
+                                ps.setInt(1, doc.getId());
+                                ps.setInt(2, drId);
+                                ps.setLong(3, doc.getNumeroIdentificador());
+                                ps.setString(4, doc.getAsunto());
+                                ps.setString(5, doc.getFechaPase() != null ? doc.getFechaPase().toString() : fechaIso.substring(0, 10));
+                                ps.setInt(6, doc.getTipoDocumento() != null ? doc.getTipoDocumento().getId() : 1);
+                                ps.setInt(7, doc.getCmOrigen() != null ? doc.getCmOrigen().getId() : (bolsin.getCmOrigen() != null ? bolsin.getCmOrigen().getId() : 1));
+                                ps.setString(8, doc.getEstadoActual() != null ? doc.getEstadoActual().getNombre() : "En Bolsín Enviado");
+                                ps.executeUpdate();
+                            }
+
+                            try (PreparedStatement ps = conn.prepareStatement(insCeDoc)) {
+                                ps.setInt(1, doc.getId());
+                                ps.setString(2, doc.getEstadoActual() != null ? doc.getEstadoActual().getNombre() : "En Bolsín Enviado");
+                                ps.setString(3, fechaIso);
+                                ps.setInt(4, emisor != null ? emisor.getId() : 10);
+                                ps.executeUpdate();
+                            }
+                        }
+                    }
+                }
+
+                conn.commit();
+                System.out.println("[Persistencia SQLite] Nuevo Bolsín #" + bolsin.getNumeroIdentificador() + " registrado y enviado correctamente.");
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                System.err.println("Error creando nuevo bolsín en SQLite: " + e.getMessage());
                 e.printStackTrace();
                 return false;
             } finally {

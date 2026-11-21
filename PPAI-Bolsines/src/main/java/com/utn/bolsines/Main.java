@@ -2,6 +2,7 @@ package com.utn.bolsines;
 
 import com.utn.bolsines.entidades.*;
 import com.utn.bolsines.entidades.estados.*;
+import com.utn.bolsines.pantallas.PantallaLogin;
 import com.utn.bolsines.pantallas.PantallaRecepcionBolsin;
 import com.utn.bolsines.persistencia.ConexionBD;
 import com.utn.bolsines.persistencia.RepositorioBolsin;
@@ -13,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Punto de entrada principal del Sistema de Bolsines (Grupo 12 - CU 28).
+ * Punto de entrada principal del Sistema de Bolsines (Grupo 8 - CU 28).
  * Soporta ejecución interactiva mediante Interfaz Gráfica (Swing) y
  * modo consola demostrativo del Flujo Básico y Flujos Alternativos con persistencia SQLite.
  */
@@ -21,7 +22,7 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println("====================================================================");
-        System.out.println("      SISTEMA DE GESTIÓN DE BOLSINES - UTN DSI (GRUPO 12)           ");
+        System.out.println("      SISTEMA DE GESTIÓN DE BOLSINES - UTN DSI (GRUPO 8)            ");
         System.out.println("           DEMOSTRACIÓN CU 28: REGISTRAR RECEPCIÓN DE BOLSÍN        ");
         System.out.println("====================================================================\n");
 
@@ -101,19 +102,13 @@ public class Main {
         // 5. Determinar si se ejecuta en modo GUI (Escritorio) o Consola
         if (!forzarConsola && !GraphicsEnvironment.isHeadless()) {
             System.out.println(">>> Iniciando interfaz gráfica interactiva Swing (Tecnología de Escritorio)...");
-            Empleado finalEmpDestino = empDestino;
             SwingUtilities.invokeLater(() -> {
                 try {
                     UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 } catch (Exception ignored) {}
 
-                PantallaRecepcionBolsin pantalla = new PantallaRecepcionBolsin(
-                        sesionUsuario,
-                        bolsines,
-                        catalogoEstados,
-                        empleados
-                );
-                pantalla.opRegistrarRecepBolsin();
+                PantallaLogin login = new PantallaLogin(empleados, catalogoEstados);
+                login.setVisible(true);
             });
         } else {
             // Demostración por consola para entornos de pruebas o verificación
@@ -164,14 +159,11 @@ public class Main {
         pantalla.opRegistrarRecepBolsin();
         var gestor = pantalla.getGestor();
 
+        // Restablecer datos de prueba limpios para garantizar la ejecución de todos los flujos
+        pantalla.restablecerDatosPrueba();
+
         // 1. Filtrado de bolsines enviados para la CM del encargado (Patrón Experto)
         List<Bolsin> disponibles = gestor.buscarBolsin();
-        if (disponibles.isEmpty()) {
-            System.out.println("[Sistema] Los bolsines ya estaban recibidos en SQLite de una ejecución previa.");
-            System.out.println("[Sistema] Restableciendo automáticamente datos de prueba a estado 'Enviado'...");
-            pantalla.restablecerDatosPrueba();
-            disponibles = gestor.buscarBolsin();
-        }
 
         System.out.println("\n[Paso 3 y 4] Bolsines en estado Enviado para la CM del usuario logueado: " + disponibles.size());
         for (Bolsin b : disponibles) {
@@ -180,14 +172,23 @@ public class Main {
         }
 
         // ====================================================================
-        // DEMOSTRACIÓN 1: FLUJO ALTERNATIVO A1 / A2 (Filtro sin resultados)
+        // DEMOSTRACIÓN 1: FLUJO ALTERNATIVO A1 (Precinto Inexistente) Y FILTRO FLEXIBLE
         // ====================================================================
         System.out.println("\n====================================================================");
-        System.out.println(">>> DEMOSTRACIÓN 1: FLUJO ALTERNATIVO A1 (Precinto Inexistente)");
+        System.out.println(">>> DEMOSTRACIÓN 1: FLUJO ALTERNATIVO A1 Y FILTRO FLEXIBLE DE PRECINTO");
         System.out.println("====================================================================");
         List<Bolsin> busquedaInexistente = gestor.buscarBolsinPorFiltro("PREC-000000", "");
-        System.out.println("Resultado de búsqueda con precinto 'PREC-000000': " + busquedaInexistente.size() + " bolsines encontrados.");
-        System.out.println("Flujo A1 validado: el sistema informa que no se encontró bolsín con el precinto ingresado.");
+        System.out.println("• Búsqueda con precinto inexistente 'PREC-000000': " + busquedaInexistente.size() + " bolsines.");
+        System.out.println("  Flujo A1 validado: el sistema informa que no se encontró bolsín con el precinto ingresado.");
+
+        // Prueba de filtro flexible (completo vs sólo número)
+        String precintoPrueba = disponibles.get(0).getNumeroPrecinto();
+        String soloNumPrueba = precintoPrueba.replaceAll("[^0-9]", "");
+        List<Bolsin> busquedaCompleta = gestor.buscarBolsinPorFiltro(precintoPrueba, "");
+        System.out.println("• Búsqueda con texto completo '" + precintoPrueba + "': " + busquedaCompleta.size() + " bolsín(es) encontrado(s).");
+        List<Bolsin> busquedaSoloNumero = gestor.buscarBolsinPorFiltro(soloNumPrueba, "");
+        System.out.println("• Búsqueda ingresando sólo números '" + soloNumPrueba + "': " + busquedaSoloNumero.size() + " bolsín(es) encontrado(s).");
+        System.out.println("  Filtro flexible validado exitosamente.");
 
         // ====================================================================
         // DEMOSTRACIÓN 2: FLUJO BÁSICO (Opción 1: Contenido Conforme)
@@ -201,11 +202,13 @@ public class Main {
         System.out.println("[Usuario] Selecciona Opción 1: El contenido del bolsín es igual al registrado");
         gestor.tomarOpRecepcion(1);
 
-        System.out.println("\n[Verificación Post-condición Bolsín #301]:");
-        System.out.println("   Estado Bolsín: " + bolsin1.getEstadoActual().getNombre());
+        System.out.println("\n[Verificación Post-condición Paso 11 - Bolsín #301]:");
+        System.out.println("   Estado Bolsín: " + bolsin1.getEstadoActual().getNombre() +
+                " | Responsable: " + (gestor.getEncargado() != null ? gestor.getEncargado().toString() : "N/A"));
         for (Documentacion doc : bolsin1.obtenerDocumentaciones()) {
             System.out.println("   Documento #" + doc.getNumeroIdentificador() + " [" + doc.getAsunto() +
-                    "] -> Estado actual (Patrón State): " + doc.getEstadoActual().getNombre());
+                    "] -> Estado actual (Patrón State): " + doc.getEstadoActual().getNombre() +
+                    " | Responsable: " + (gestor.getEncargado() != null ? gestor.getEncargado().toString() : "N/A"));
         }
 
         // ====================================================================
@@ -229,11 +232,13 @@ public class Main {
                     " (" + faltantes.get(0).getAsunto() + ")");
             gestor.tomarOpRecepcion(2, faltantes);
 
-            System.out.println("\n[Verificación Post-condición Bolsín #302]:");
-            System.out.println("   Estado Bolsín: " + bolsin2.getEstadoActual().getNombre());
+            System.out.println("\n[Verificación Post-condición Paso 11 - Bolsín #302]:");
+            System.out.println("   Estado Bolsín: " + bolsin2.getEstadoActual().getNombre() +
+                    " | Responsable: " + (gestor.getEncargado() != null ? gestor.getEncargado().toString() : "N/A"));
             for (Documentacion doc : bolsin2.obtenerDocumentaciones()) {
                 System.out.println("   Documento #" + doc.getNumeroIdentificador() + " [" + doc.getAsunto() +
-                        "] -> Estado actual (Patrón State): " + doc.getEstadoActual().getNombre());
+                        "] -> Estado actual (Patrón State): " + doc.getEstadoActual().getNombre() +
+                        " | Responsable: " + (gestor.getEncargado() != null ? gestor.getEncargado().toString() : "N/A"));
             }
         }
 

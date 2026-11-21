@@ -260,4 +260,10 @@ public class ConexionBD {
             }
         }
     }
+
+    public static void main(String[] args) {
+        inicializarBaseDeDatos();
+        reiniciarDatosSemilla();
+        System.out.println("Base de datos SQLite restablecida a datos iniciales de prueba.");
+    }
 }

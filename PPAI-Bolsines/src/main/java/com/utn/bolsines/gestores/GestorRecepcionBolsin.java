@@ -116,8 +116,7 @@ public class GestorRecepcionBolsin {
         List<Bolsin> resultado = new ArrayList<>();
 
         for (Bolsin b : candidatos) {
-            boolean coincidePrecinto = (precinto == null || precinto.trim().isEmpty())
-                    || (b.getNumeroPrecinto() != null && b.getNumeroPrecinto().equalsIgnoreCase(precinto.trim()));
+            boolean coincidePrecinto = coincidePrecinto(b.getNumeroPrecinto(), precinto);
 
             boolean coincideOrigen = (cmOrigenNombre == null || cmOrigenNombre.trim().isEmpty())
                     || (b.getCmOrigen() != null && b.getCmOrigen().getNombre().toLowerCase().contains(cmOrigenNombre.trim().toLowerCase()));
@@ -127,6 +126,35 @@ public class GestorRecepcionBolsin {
             }
         }
         return resultado;
+    }
+
+    /**
+     * Compara el número de precinto permitiendo ingresar el formato completo (ej. PREC-445566)
+     * o solo el valor numérico (ej. 445566).
+     */
+    public boolean coincidePrecinto(String precintoBolsin, String filtro) {
+        if (filtro == null || filtro.trim().isEmpty()) {
+            return true;
+        }
+        if (precintoBolsin == null) {
+            return false;
+        }
+        String pBolsin = precintoBolsin.trim().toUpperCase();
+        String pFiltro = filtro.trim().toUpperCase();
+
+        // 1. Coincidencia directa o parcial
+        if (pBolsin.equalsIgnoreCase(pFiltro) || pBolsin.contains(pFiltro)) {
+            return true;
+        }
+
+        // 2. Coincidencia solo por números (ej. "445566" coincide con "PREC-445566")
+        String numBolsin = pBolsin.replaceAll("[^0-9]", "");
+        String numFiltro = pFiltro.replaceAll("[^0-9]", "");
+        if (!numFiltro.isEmpty() && !numBolsin.isEmpty()) {
+            return numBolsin.equals(numFiltro) || numBolsin.contains(numFiltro);
+        }
+
+        return false;
     }
 
     /**
@@ -307,6 +335,21 @@ public class GestorRecepcionBolsin {
                     encargado
             );
         }
+
+        // Paso 11 del CU: Muestra y registra la actualización con el legajo del empleado responsable
+        System.out.println("\n--------------------------------------------------------------------");
+        System.out.println("[Paso 11 del CU 28] Actualización de Estados y Empleado Responsable:");
+        System.out.println("  • Bolsín #" + bolsinSeleccionado.getNumeroIdentificador() + " -> " + nuevoEstadoBolsin.getNombre() +
+                " [Responsable: " + (encargado != null ? encargado.getNombre() + " " + encargado.getApellido() +
+                " (Legajo: " + encargado.getLegajo() + ", ID: " + encargado.getId() + ")" : "N/A") + "]");
+        System.out.println("  • Remitos asociados -> " + nuevoEstadoRemito.getNombre());
+        for (Documentacion doc : bolsinSeleccionado.obtenerDocumentaciones()) {
+            System.out.println("  • Documentación #" + doc.getNumeroIdentificador() + " (" + doc.getAsunto() + ") -> " +
+                    doc.getEstadoActual().getNombre() +
+                    " [Responsable: " + (encargado != null ? encargado.getNombre() + " " + encargado.getApellido() +
+                    " (Legajo: " + encargado.getLegajo() + ", ID: " + encargado.getId() + ")" : "N/A") + "]");
+        }
+        System.out.println("--------------------------------------------------------------------");
     }
 
     /**

@@ -67,7 +67,7 @@ public class PantallaRecepcionBolsin extends JFrame {
     public PantallaRecepcionBolsin(Sesion sesionActual, List<Bolsin> bolsinesDisponibles,
                                   List<Estado> catalogoEstados, List<Empleado> empleadosRegistrados,
                                   boolean esInteractivo) {
-        super("CU 28 - Registrar Recepción de Bolsín (Grupo 12)");
+        super("CU 28 - Registrar Recepción de Bolsín (Grupo 8)");
         this.sesionActual = sesionActual;
         this.bolsinesDisponibles = bolsinesDisponibles;
         this.catalogoEstados = catalogoEstados;
@@ -115,20 +115,28 @@ public class PantallaRecepcionBolsin extends JFrame {
         setLayout(new BorderLayout(10, 10));
 
         // Panel Encabezado (Paso 2: Datos de CM y usuario logueado)
-        JPanel panelNorte = new JPanel(new GridLayout(2, 1, 4, 4));
+        JPanel panelNorte = new JPanel(new BorderLayout(10, 10));
         panelNorte.setBackground(new Color(240, 244, 248));
         panelNorte.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
                 new EmptyBorder(10, 15, 10, 15)
         ));
 
+        JPanel panelInfoUsuario = new JPanel(new GridLayout(2, 1, 4, 4));
+        panelInfoUsuario.setOpaque(false);
         lblUsuarioLogueado = new JLabel("Usuario Logueado: " + (sesionActual != null ? sesionActual.getUsuario() : "N/A"));
         lblUsuarioLogueado.setFont(new Font("SansSerif", Font.BOLD, 14));
         lblCMUsuario = new JLabel("Comisión Médica de Destino: Cargando...");
         lblCMUsuario.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        panelInfoUsuario.add(lblUsuarioLogueado);
+        panelInfoUsuario.add(lblCMUsuario);
+        panelNorte.add(panelInfoUsuario, BorderLayout.CENTER);
 
-        panelNorte.add(lblUsuarioLogueado);
-        panelNorte.add(lblCMUsuario);
+        JButton btnCerrarSesion = new JButton("🚪 Cerrar Sesión");
+        btnCerrarSesion.setFocusable(false);
+        btnCerrarSesion.addActionListener(e -> cerrarSesion());
+        panelNorte.add(btnCerrarSesion, BorderLayout.EAST);
+
         add(panelNorte, BorderLayout.NORTH);
 
         // Panel Central: Filtros + Tabla de Bolsines + Detalle Remitos / Opciones
@@ -150,17 +158,21 @@ public class PantallaRecepcionBolsin extends JFrame {
 
         btnBuscar = new JButton("Filtrar");
         btnLimpiarFiltro = new JButton("Limpiar");
+        JButton btnCrearBolsin = new JButton("➕ Crear Nuevo Bolsín");
+        btnCrearBolsin.setBackground(new Color(220, 245, 230));
         JButton btnRestablecer = new JButton("↻ Restablecer Bolsines a Enviado");
         btnRestablecer.setBackground(new Color(230, 240, 255));
 
         panelFiltros.add(btnBuscar);
         panelFiltros.add(btnLimpiarFiltro);
+        panelFiltros.add(btnCrearBolsin);
         panelFiltros.add(btnRestablecer);
 
         JButton btnVerBD = new JButton("📊 Ver Base de Datos en Vivo");
         btnVerBD.setBackground(new Color(255, 243, 205));
         panelFiltros.add(btnVerBD);
         btnVerBD.addActionListener(e -> new VisorBaseDatosDialog(this).setVisible(true));
+        btnCrearBolsin.addActionListener(e -> new DialogoCrearBolsin(this).setVisible(true));
 
         panelCentro.add(panelFiltros);
 
@@ -475,21 +487,29 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 12 del CU: Informa la ejecución exitosa del caso de uso.
+     * Muestra detalladamente la postcondición del Paso 11 incluyendo el legajo del responsable.
      */
     public void notificarExito(String mensaje) {
-        System.out.println("\n[Pantalla - ÉXITO]\n" + mensaje);
+        String infoResp = "";
+        if (sesionActual != null && sesionActual.getEmpleado() != null) {
+            Empleado emp = sesionActual.getEmpleado();
+            infoResp = "\n\n[Paso 11 - Empleado Responsable Registrado]:" +
+                       "\n• Legajo: " + emp.getLegajo() + " (ID: " + emp.getId() + ")" +
+                       "\n• Nombre: " + emp.getNombre() + " " + emp.getApellido() +
+                       "\n• Comisión Médica: " + (emp.getCM() != null ? emp.getCM().getNombre() : "N/A");
+        }
+
+        System.out.println("\n[Pantalla - ÉXITO]\n" + mensaje + infoResp);
         System.out.println("[Persistencia] Cambios persistidos correctamente en SQLite (bolsines.db).");
 
         if (esInteractivo) {
             JOptionPane.showMessageDialog(this,
-                    mensaje + "\n\nSe actualizó la Base de Datos SQLite y se envió la notificación por email.",
-                    "Recepción Registrada con Éxito",
+                    mensaje + infoResp + "\n\nSe actualizó la Base de Datos SQLite y se envió la notificación por email.",
+                    "Recepción Registrada con Éxito (Paso 11 y 12)",
                     JOptionPane.INFORMATION_MESSAGE);
 
             // Refrescar la tabla para mostrar los estados actualizados en SQLite
-            if (gestor != null) {
-                mostrarBolsin(gestor.buscarBolsin());
-            }
+            recargarBolsinesDesdeBD();
         }
     }
 
@@ -503,13 +523,31 @@ public class PantallaRecepcionBolsin extends JFrame {
         }
     }
 
-    public void restablecerDatosPrueba() {
-        com.utn.bolsines.persistencia.RepositorioBolsin.getInstancia().reiniciarDatosPrueba();
+    public void recargarBolsinesDesdeBD() {
         this.bolsinesDisponibles = com.utn.bolsines.persistencia.RepositorioBolsin.getInstancia().obtenerTodosLosBolsines();
         if (gestor != null) {
             gestor.setListaBolsines(this.bolsinesDisponibles);
             mostrarBolsin(gestor.buscarBolsin());
         }
+    }
+
+    private void cerrarSesion() {
+        int resp = JOptionPane.showConfirmDialog(
+                this,
+                "¿Desea cerrar la sesión actual y volver al inicio de sesión?",
+                "Cerrar Sesión",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+        if (resp == JOptionPane.YES_OPTION) {
+            this.dispose();
+            SwingUtilities.invokeLater(() -> new PantallaLogin(empleadosRegistrados, catalogoEstados).setVisible(true));
+        }
+    }
+
+    public void restablecerDatosPrueba() {
+        com.utn.bolsines.persistencia.RepositorioBolsin.getInstancia().reiniciarDatosPrueba();
+        recargarBolsinesDesdeBD();
         if (esInteractivo) {
             JOptionPane.showMessageDialog(this,
                     "Datos de prueba restablecidos en SQLite.\nLos bolsines 301 y 302 vuelven a estar en estado 'Enviado'.",
