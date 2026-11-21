@@ -4,6 +4,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * ============================================================================
+ * ENTIDAD: ComisionMedica (<<entity>>)
+ * ============================================================================
+ * Representa una sede física médica jurisdiccional del sistema.
+ * 
+ * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
+ * - Asociación simple (1 a muchos) con Empleado (rol: 'integrantes' / 'asignadoA'):
+ *     Contiene los operadores y peritos médicos de la sede.
+ * - Asociación con Bolsin (roles: 'origen' y 'destino'):
+ *     Indica la CM remitente y la CM destinataria de un bolsín.
+ * - Asociación con Remito (rol: 'destino'):
+ *     Indica la CM a la que va dirigida la documentación.
+ * - Asociación con Documentacion (rol: 'cmOrigen'):
+ *     Indica la CM en donde se originó el documento legal o médico.
+ */
 public class ComisionMedica {
     private int id;
     private String codigo;

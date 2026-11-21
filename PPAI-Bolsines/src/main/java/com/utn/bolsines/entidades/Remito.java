@@ -8,16 +8,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Entidad Remito (Corrección 2 y 7).
- * Se asocia a 1..* DetalleRemito.
+ * ============================================================================
+ * ENTIDAD: Remito (<<entity>>)
+ * ============================================================================
+ * Documento de envío que agrupa uno o más ítems de documentación dentro del bolsín.
+ * 
+ * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
+ * - Agregación / Composición (1 a 1..*) con DetalleRemito (rol: 'detalleRemito'):
+ *     Cada remito contiene uno o más renglones de detalle.
+ * - Asociación simple (1 a 1) con ComisionMedica (rol: 'destino'):
+ *     Indica la sede destinataria hacia donde viaja la documentación.
+ * - Asociación simple (1 a 1) con EstadoRemito (rol: 'estado'):
+ *     Estado en el que se encuentra el remito (ej: 'En Bolsín Enviado', 'Recibido y Aceptado').
+ * - Asociación con Empleado (rol: 'empleadoEmisor'):
+ *     Empleado de la CM de origen que emitió el remito.
  */
 public class Remito {
+
     private int id;
-    private long numeroRemito;
-    private LocalDateTime fechaHoraAlta;
+    private long numeroRemito; // 'numero' en Diagrama de Clases
+    private LocalDateTime fechaHoraAlta; // 'fecha' en Diagrama de Clases
     private Empleado empleadoEmisor;
     private ComisionMedica cmDestino;
-    private List<DetalleRemito> detalles;
+    private List<DetalleRemito> detalles; // Rol: 'detalleRemito' (1..*)
     private EstadoRemito estado;
 
     public Remito() {
@@ -38,25 +51,45 @@ public class Remito {
         this.detalles.add(detalle);
     }
 
+    // =========================================================================
+    // MÉTODOS DEL DIAGRAMA DE CLASES Y SECUENCIAS (GRUPO 8)
+    // =========================================================================
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: getNumero()
+     */
     public long getNumero() {
         return numeroRemito;
     }
 
-    public List<String> mostrarDocumentacion() {
+    /**
+     * Método del Diagrama de Clases y Secuencias: obtenerInfoDocumentacion()
+     * Itera por los detalles del remito para obtener el detalle de cada documentación.
+     */
+    public List<String> obtenerInfoDocumentacion() {
         List<String> docsInfo = new ArrayList<>();
         for (DetalleRemito det : detalles) {
-            docsInfo.add(det.mostrarDocumentacion());
+            docsInfo.add(det.obtenerDatosDetalle());
         }
         return docsInfo;
     }
 
+    public List<String> mostrarDocumentacion() {
+        return obtenerInfoDocumentacion();
+    }
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: recibirYAceptar()
+     * Transiciona el estado del remito a Recibido y Aceptado y delega la actualización
+     * a cada uno de sus detalles.
+     */
     public void recibirYAceptar(EstadoRemito nuevoEstadoRemito, EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
         if (this.estado != null) {
             this.estado.recibirYAceptar(this, nuevoEstadoRemito, nuevoEstadoDoc, fechaHora, responsable);
         } else {
             this.estado = nuevoEstadoRemito;
             for (DetalleRemito det : detalles) {
-                det.recibirYAceptar(nuevoEstadoDoc, fechaHora, responsable);
+                det.actualizarEstadoDoc(nuevoEstadoDoc, fechaHora, responsable);
             }
         }
     }

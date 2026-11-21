@@ -9,21 +9,40 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Entidad Bolsín.
- * Cumple con las Correcciones 1, 2, 5 y 7.
- * Conoce Remitos en cascada (no detalles ni documentación directa).
- * Aplica el Patrón Experto para evaluar su estado y destino.
+ * ============================================================================
+ * ENTIDAD: Bolsin (<<entity>>)
+ * ============================================================================
+ * Representa la saca o bolso de transporte físico de documentación médica
+ * entre Comisiones Médicas.
+ * 
+ * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
+ * - Agregación / Composición (1 a 1..*) con Remito (rol: 'remito'):
+ *     Un Bolsín contiene uno o más Remitos enviados conjuntamente.
+ * - Composición (1 a 1..*) con CambioEstadoBolsin (rol: 'cambioEstadoBolsin'):
+ *     Historial cronológico de cambios de estado del bolsín.
+ * - Asociación simple (1 a 1) con ComisionMedica (rol: 'origen'):
+ *     Comisión Médica remitente que envía el bolsín.
+ * - Asociación simple (1 a 1) con ComisionMedica (rol: 'destino'):
+ *     Comisión Médica destinataria donde se debe registrar la recepción (CU 28).
+ * - Asociación con EstadoBolsin (rol: 'estadoActual'):
+ *     Estado en el que se encuentra actualmente el bolsín.
+ * 
+ * PATRONES DE DISEÑO APLICADOS:
+ * - Patrón Experto en Información (GRASP): Es la clase que conoce su destino,
+ *   precinto y estado, evaluando sosEnviado() y esTuCMDestino().
+ * - Cascada de actualización hacia Remito y DetalleRemito.
  */
 public class Bolsin {
+
     private int id;
-    private long numeroIdentificador;
-    private String numeroPrecinto;
-    private LocalDateTime fechaAlta;
+    private long numeroIdentificador; // 'numeroBolsin' en Diagrama de Clases
+    private String numeroPrecinto;    // 'numeroPrecinto' / 'nroPrecinto'
+    private LocalDateTime fechaAlta;  // 'fecha' en Diagrama de Clases
     private double peso;
-    private ComisionMedica cmOrigen;
-    private ComisionMedica cmDestino;
-    private List<Remito> remitos;
-    private List<CambioEstadoBolsin> historialEstados;
+    private ComisionMedica cmOrigen;  // Rol: 'origen'
+    private ComisionMedica cmDestino; // Rol: 'destino'
+    private List<Remito> remitos;     // Rol: 'remito' (1..*)
+    private List<CambioEstadoBolsin> historialEstados; // Rol: 'cambioEstadoBolsin' (1..*)
     private EstadoBolsin estadoActual;
 
     public Bolsin() {
@@ -59,41 +78,94 @@ public class Bolsin {
         this.remitos.add(remito);
     }
 
-    // ==========================================
-    // PATRÓN EXPERTO (Corrección 5)
-    // ==========================================
+    // =========================================================================
+    // MÉTODOS DEL DIAGRAMA DE CLASES Y SECUENCIAS (GRUPO 8)
+    // =========================================================================
 
+    /**
+     * Método del Diagrama de Clases y Secuencias: esTuCMDestino()
+     * Verifica si la Comisión Médica pasada por parámetro coincide con el destino del Bolsín.
+     */
+    public boolean esTuCMDestino(ComisionMedica cm) {
+        return this.cmDestino != null && this.cmDestino.equals(cm);
+    }
+
+    public boolean tenesEstaCMDestino(ComisionMedica destino) {
+        return esTuCMDestino(destino);
+    }
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: sosEnviado()
+     * Delega en su CambioEstadoBolsin actual para determinar si el estado es 'Enviado'.
+     */
     public boolean sosEnviado() {
+        CambioEstadoBolsin ceActual = buscarCambioEstadoActual();
+        if (ceActual != null) {
+            return ceActual.sosEnviado();
+        }
         EstadoBolsin est = obtenerEstadoActual();
         return est != null && est.sosEnviado();
     }
 
-    public boolean tenesEstaCMDestino(ComisionMedica destino) {
-        return this.cmDestino != null && this.cmDestino.equals(destino);
+    public boolean esParaCMYEstasEnviado(ComisionMedica destino) {
+        return sosEnviado() && esTuCMDestino(destino);
     }
 
-    public boolean esParaCMYEstasEnviado(ComisionMedica destino) {
-        return sosEnviado() && tenesEstaCMDestino(destino);
+    /**
+     * Método del Diagrama de Clases: getNumeroBolsin()
+     */
+    public long getNumeroBolsin() {
+        return this.numeroIdentificador;
+    }
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: mostrarTuCMOrigen()
+     */
+    public String mostrarTuCMOrigen() {
+        return (this.cmOrigen != null) ? this.cmOrigen.getNombre() : "N/A";
+    }
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: getNroPrecinto()
+     */
+    public String getNroPrecinto() {
+        return this.numeroPrecinto;
+    }
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: obtenerRemito()
+     * Retorna los remitos contenidos en el bolsín.
+     */
+    public List<Remito> obtenerRemito() {
+        return this.remitos;
     }
 
     public boolean esTuCMOrigen(ComisionMedica origen) {
         return this.cmOrigen != null && this.cmOrigen.equals(origen);
     }
 
-    // ==========================================
-    // TRAZABILIDAD Y CAMBIO DE ESTADO (Corrección 7)
-    // ==========================================
+    // =========================================================================
+    // TRAZABILIDAD Y CAMBIO DE ESTADO (Corrección 7 y Diagrama)
+    // =========================================================================
+
+    /**
+     * Método del Diagrama de Clases: crearCEBolsin()
+     * Cierra el cambio de estado actual y genera un nuevo CambioEstadoBolsin.
+     */
+    public void crearCEBolsin(EstadoBolsin nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+        actualizarEstado(nuevoEstado, fechaHora, responsable);
+    }
 
     public void actualizarEstado(EstadoBolsin nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
         LocalDateTime ahora = (fechaHora != null) ? fechaHora : LocalDateTime.now();
 
-        // 1. Cerrar el cambio de estado actual
+        // 1. Cerrar el cambio de estado actual (fechaHoraFin)
         CambioEstadoBolsin ceActual = buscarCambioEstadoActual();
         if (ceActual != null) {
             ceActual.setFechaHoraFin(ahora);
         }
 
-        // 2. Crear y agregar el nuevo cambio de estado
+        // 2. Crear y agregar el nuevo cambio de estado con el responsable
         CambioEstadoBolsin nuevoCE = new CambioEstadoBolsin(nuevoEstado, ahora, responsable);
         this.historialEstados.add(nuevoCE);
         this.estadoActual = nuevoEstado;
@@ -124,20 +196,17 @@ public class Bolsin {
         return obtenerEstadoActual();
     }
 
-    // ==========================================
+    // =========================================================================
     // REALIZACIÓN DEL CU 28: RECEPCIÓN
-    // ==========================================
+    // =========================================================================
 
+    /**
+     * Método del Diagrama de Clases y Secuencias: recibir()
+     * Actualiza el bolsín y propaga la recepción en cascada a sus remitos.
+     */
     public void recibir(EstadoBolsin nuevoEstadoBolsin, EstadoRemito nuevoEstadoRemito,
                         EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
-        // Transición de estado del Bolsín delegada a su estado actual o directamente al nuevo
-        if (obtenerEstadoActual() != null) {
-            obtenerEstadoActual().recibir(this, nuevoEstadoBolsin, fechaHora, responsable);
-        } else {
-            actualizarEstado(nuevoEstadoBolsin, fechaHora, responsable);
-        }
-
-        // Actualizar remitos y documentos en cascada (Corrección 2)
+        crearCEBolsin(nuevoEstadoBolsin, fechaHora, responsable);
         actualizarARecibidosYAceptados(nuevoEstadoRemito, nuevoEstadoDoc, fechaHora, responsable);
     }
 
@@ -145,11 +214,7 @@ public class Bolsin {
                                        EstadoDocumentacion estadoDocAceptada, EstadoDocumentacion estadoDocAlternativo,
                                        List<Documentacion> docsAfectados, int opcion,
                                        LocalDateTime fechaHora, Empleado responsable) {
-        if (obtenerEstadoActual() != null) {
-            obtenerEstadoActual().recibir(this, nuevoEstadoBolsin, fechaHora, responsable);
-        } else {
-            actualizarEstado(nuevoEstadoBolsin, fechaHora, responsable);
-        }
+        crearCEBolsin(nuevoEstadoBolsin, fechaHora, responsable);
 
         if (this.remitos != null) {
             for (Remito r : remitos) {
@@ -201,7 +266,7 @@ public class Bolsin {
         List<String> info = new ArrayList<>();
         for (Remito remito : remitos) {
             info.add("Remito N°: " + remito.getNumero());
-            List<String> docsInfo = remito.mostrarDocumentacion();
+            List<String> docsInfo = remito.obtenerInfoDocumentacion();
             for (String docStr : docsInfo) {
                 info.add("   - " + docStr);
             }

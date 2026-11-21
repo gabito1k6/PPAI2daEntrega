@@ -1,5 +1,14 @@
 package com.utn.bolsines.entidades;
 
+/**
+ * ============================================================================
+ * ENTIDAD: TipoDocumento (<<entity>>)
+ * ============================================================================
+ * Clasificación de la documentación (ej: Expediente, Dictamen, Estudio Médico).
+ * 
+ * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
+ * - Asociación simple (1 a muchos) con Documentacion (rol: 'tipoDocumento').
+ */
 public class TipoDocumento {
     private int id;
     private String nombre;

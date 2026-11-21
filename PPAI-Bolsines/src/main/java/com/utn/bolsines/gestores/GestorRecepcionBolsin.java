@@ -11,29 +11,53 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Capa de Control / Gestor del CU 28: Registrar Recepción de Bolsín.
- * Cumple con el Flujo Básico y los Flujos Alternativos A1, A2, A3, A4, A5 y A6,
- * aplicando el Patrón State en Documentación y persistencia en SQLite.
+ * ============================================================================
+ * CONTROLADOR / GESTOR: GestorRecepcionBolsin (<<control>>)
+ * ============================================================================
+ * Orquestador principal del Caso de Uso 28: Registrar Recepción de Bolsín.
+ * 
+ * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
+ * - Asociación con PantallaRecepcionBolsin (Frontera / Boundary).
+ * - Conoce la Sesion activa y la lista de Bolsines del sistema.
+ * - Conoce el catálogo polimórfico de Estados (Corrección 6).
+ * - Conoce la lista de Empleados registrados.
+ * 
+ * PATRONES DE DISEÑO APLICADOS:
+ * - Controlador GRASP: Coordina el flujo de negocio sin manipular UI ni SQL.
+ * - Patrón Experto en Información: Delega las preguntas de negocio a Bolsín.
+ * - Patrón GoF STATE: En el Paso 11, delega la transición de estado a Documentación,
+ *   la cual a su vez delega en su 'EstadoDocumentacion' actual.
  */
 public class GestorRecepcionBolsin {
 
+    // Referencias a componentes del sistema
     private PantallaRecepcionBolsin pantalla;
     private Sesion sesion;
     private List<Bolsin> listaBolsines;
     private List<Estado> catalogoEstados;
     private List<Empleado> listaEmpleados;
 
-    // Atributos de contexto durante el caso de uso
-    private Empleado encargado;
-    private ComisionMedica cmEmpleado;
-    private Bolsin bolsinSeleccionado;
-    private String numeroPrecintoBolsin;
-    private ComisionMedica cmDestinoBolsin;
-    private LocalDateTime fechaHoraActual;
-    private int opcionRecepcionSeleccionada;
+    // =========================================================================
+    // ATRIBUTOS SEGÚN EL DIAGRAMA DE CLASES (GRUPO 8)
+    // =========================================================================
+    private Empleado usuarioLogueado;             // 'usuarioLogueado: Empleado'
+    private ComisionMedica CMUsuarioLog;          // 'CMUsuarioLog' (CM del usuario)
+    private List<Bolsin> bolsinesEnviados = new ArrayList<>(); // 'bolsinesEnviados'
+    private ComisionMedica CMOrigen;              // 'CMOrigen'
+    private List<String> datosBolsin = new ArrayList<>();      // 'datosBolsin'
+    private String nroPrecinto;                   // 'nroPrecinto'
+    private Bolsin bolsinSeleccionado;            // 'bolsinSeleccionado'
+    private List<String> datosRemitosBolsin = new ArrayList<>(); // 'datosRemitosBolsin'
+    private List<Documentacion> documentacionDelRemitos = new ArrayList<>(); // 'documentacionDelRemitos'
+    private int opcionSelecc;                     // 'opcionSelecc'
+    private boolean confirmacionRecepcion;        // 'confirmacionRecepcion'
+    private LocalDateTime fechaHoraActual;        // 'fechaHoraActual'
+    private Remito remitoSeleccionado;            // 'remitoSeleccionado'
+
+    // Atributos adicionales de soporte
     private List<Documentacion> documentacionesObservadas = new ArrayList<>();
 
-    // Estados buscados para la transición (Corrección 6 - Búsqueda polimórfica)
+    // Estados de destino (Corrección 6: Búsqueda polimórfica en catálogo)
     private EstadoBolsin nuevoEstadoBolsin;
     private EstadoRemito nuevoEstadoRemito;
     private EstadoDocumentacion nuevoEstadoDocAceptada;
@@ -51,73 +75,118 @@ public class GestorRecepcionBolsin {
         this.listaEmpleados = (listaEmpleados != null) ? listaEmpleados : new ArrayList<>();
     }
 
-    /**
-     * Paso 1-4 del CU: Inicia la recepción buscando encargado, CM y bolsines enviados.
-     */
-    public void registrarRecepcion() {
-        // 1. Buscar encargado logueado
-        buscarEncargado();
+    // =========================================================================
+    // PASOS 1 A 4: INICIO Y BÚSQUEDA DE BOLSINES
+    // =========================================================================
 
-        // 2. Buscar Comisión Médica del encargado
+    /**
+     * Método del Diagrama de Clases y Secuencias: registrarRecepcionBolsin()
+     * Inicia el flujo del caso de uso.
+     */
+    public void registrarRecepcionBolsin() {
+        // 1. Obtener usuario logueado de la sesión
+        pedirUsuarioLogueado();
+
+        // 2. Buscar la Comisión Médica a la que pertenece el usuario
         buscarCM();
 
-        // 3. Mostrar CM en la pantalla
-        if (pantalla != null && cmEmpleado != null) {
-            pantalla.mostrarDatos(cmEmpleado.getNombre());
+        // 3. Mostrar Comisión Médica activa en la interfaz frontera
+        if (pantalla != null && CMUsuarioLog != null) {
+            pantalla.mostrarCM(CMUsuarioLog.getNombre());
         }
 
-        // 4. Buscar bolsines en estado enviado para la CM destino (Corrección 5: Patrón Experto)
-        List<Bolsin> bolsinesParaRecepcion = buscarBolsin();
+        // 4. Buscar bolsines en estado enviado para la CM destino (Patrón Experto)
+        this.bolsinesEnviados = buscarBolsines();
 
-        // 5. Mostrar lista de bolsines en pantalla
+        // 5. Preparar datos de presentación y solicitar selección en pantalla
+        buscarDatosBolsin();
         if (pantalla != null) {
-            pantalla.mostrarBolsin(bolsinesParaRecepcion);
+            pantalla.solicitarSeleccionBolsin(this.bolsinesEnviados);
         }
     }
 
-    public void buscarEncargado() {
-        if (sesion != null && sesion.getUsuario() != null) {
-            String usuarioLogueado = sesion.getUsuario();
-            for (Empleado emp : listaEmpleados) {
-                if (emp.sosUsuario(usuarioLogueado)) {
-                    this.encargado = emp;
-                    break;
+    public void registrarRecepcion() {
+        registrarRecepcionBolsin();
+    }
+
+    /**
+     * Método del Diagrama de Secuencias: pedirUsuarioLogueado()
+     * Obtiene el empleado autenticado a partir de la sesión activa.
+     */
+    public void pedirUsuarioLogueado() {
+        if (sesion != null) {
+            if (sesion.getEmpleado() != null) {
+                this.usuarioLogueado = sesion.getEmpleado();
+            } else if (sesion.getUsuario() != null) {
+                String nombreUsuario = sesion.getUsuario();
+                for (Empleado emp : listaEmpleados) {
+                    if (emp.esTuUsuario(nombreUsuario)) {
+                        this.usuarioLogueado = emp;
+                        break;
+                    }
                 }
             }
         }
     }
 
+    public void buscarEncargado() {
+        pedirUsuarioLogueado();
+    }
+
+    /**
+     * Método del Diagrama de Secuencias: buscarCM()
+     * Solicita al empleado logueado su Comisión Médica ('logueado:Empleado.buscarCM()').
+     */
     public void buscarCM() {
-        if (encargado != null) {
-            this.cmEmpleado = encargado.getCM();
+        if (usuarioLogueado != null) {
+            this.CMUsuarioLog = usuarioLogueado.buscarCM();
         }
     }
 
     /**
-     * Corrección 5: Filtrado delegado de Bolsines (Patrón Experto).
-     * El Gestor le envía a cada Bolsín: sosEnviado() y tenesEstaCMDestino(cmEmpleado).
+     * Método del Diagrama de Secuencias: buscarBolsines()
+     * Aplica el Patrón Experto en Información (Corrección 5 de DSI):
+     * Le pregunta a cada Bolsín: 'esTuCMDestino(CMUsuarioLog)' y 'sosEnviado()'.
      */
-    public List<Bolsin> buscarBolsin() {
+    public List<Bolsin> buscarBolsines() {
         List<Bolsin> filtrados = new ArrayList<>();
         for (Bolsin b : listaBolsines) {
-            if (b.sosEnviado() && b.tenesEstaCMDestino(cmEmpleado)) {
+            // El Bolsín es experto en verificar su propio estado y destino
+            if (b.esTuCMDestino(CMUsuarioLog) && b.sosEnviado()) {
                 filtrados.add(b);
             }
         }
         return filtrados;
     }
 
+    public List<Bolsin> buscarBolsin() {
+        return buscarBolsines();
+    }
+
     /**
-     * Soporte para Flujos Alternativos A1 y A2:
-     * Filtra los bolsines por número de precinto y/o por Comisión Médica de origen.
+     * Método del Diagrama de Secuencias: buscarDatosBolsin()
+     * Para cada bolsín enviado, recopila la CM origen y el número de precinto.
      */
+    public List<String> buscarDatosBolsin() {
+        this.datosBolsin.clear();
+        for (Bolsin b : bolsinesEnviados) {
+            String origen = b.mostrarTuCMOrigen();
+            String precinto = b.getNroPrecinto();
+            this.datosBolsin.add("Bolsín #" + b.getNumeroBolsin() + " | Precinto: " + precinto + " | Origen: " + origen);
+        }
+        return this.datosBolsin;
+    }
+
+    // =========================================================================
+    // FILTROS DE BÚSQUEDA (Flujos Alternativos A1 y A2)
+    // =========================================================================
+
     public List<Bolsin> buscarBolsinPorFiltro(String precinto, String cmOrigenNombre) {
-        List<Bolsin> candidatos = buscarBolsin();
+        List<Bolsin> candidatos = buscarBolsines();
         List<Bolsin> resultado = new ArrayList<>();
 
         for (Bolsin b : candidatos) {
-            boolean coincidePrecinto = coincidePrecinto(b.getNumeroPrecinto(), precinto);
-
+            boolean coincidePrecinto = coincidePrecinto(b.getNroPrecinto(), precinto);
             boolean coincideOrigen = (cmOrigenNombre == null || cmOrigenNombre.trim().isEmpty())
                     || (b.getCmOrigen() != null && b.getCmOrigen().getNombre().toLowerCase().contains(cmOrigenNombre.trim().toLowerCase()));
 
@@ -128,87 +197,114 @@ public class GestorRecepcionBolsin {
         return resultado;
     }
 
-    /**
-     * Compara el número de precinto permitiendo ingresar el formato completo (ej. PREC-445566)
-     * o solo el valor numérico (ej. 445566).
-     */
     public boolean coincidePrecinto(String precintoBolsin, String filtro) {
-        if (filtro == null || filtro.trim().isEmpty()) {
-            return true;
-        }
-        if (precintoBolsin == null) {
-            return false;
-        }
+        if (filtro == null || filtro.trim().isEmpty()) return true;
+        if (precintoBolsin == null) return false;
+
         String pBolsin = precintoBolsin.trim().toUpperCase();
         String pFiltro = filtro.trim().toUpperCase();
 
-        // 1. Coincidencia directa o parcial
-        if (pBolsin.equalsIgnoreCase(pFiltro) || pBolsin.contains(pFiltro)) {
-            return true;
-        }
+        if (pBolsin.contains(pFiltro)) return true;
 
-        // 2. Coincidencia solo por números (ej. "445566" coincide con "PREC-445566")
         String numBolsin = pBolsin.replaceAll("[^0-9]", "");
         String numFiltro = pFiltro.replaceAll("[^0-9]", "");
         if (!numFiltro.isEmpty() && !numBolsin.isEmpty()) {
             return numBolsin.equals(numFiltro) || numBolsin.contains(numFiltro);
         }
-
         return false;
     }
 
+    // =========================================================================
+    // PASOS 5 Y 6: SELECCIÓN DE BOLSÍN Y BÚSQUEDA DE REMITOS
+    // =========================================================================
+
     /**
-     * Paso 5 del CU: El actor selecciona un Bolsín del listado.
+     * Método del Diagrama de Secuencias: tomarSeleccionBolsin()
      */
-    public void tomarBolsin(Bolsin bolsin) {
+    public void tomarSeleccionBolsin(Bolsin bolsin) {
         this.bolsinSeleccionado = bolsin;
         if (bolsin != null) {
-            this.numeroPrecintoBolsin = bolsin.getNumeroPrecinto();
-            this.cmDestinoBolsin = bolsin.getCmDestino();
+            this.nroPrecinto = bolsin.getNroPrecinto();
+            this.CMOrigen = bolsin.getCmOrigen();
         }
 
-        // Paso 6: Buscar y mostrar remitos y documentos contenidos
+        // Paso 6: Buscar remitos y documentación contenida
         buscarRemito();
 
-        // Paso 7: Mostrar opciones de recepción
+        // Paso 7: Habilitar en pantalla la selección de opciones de recepción
         if (pantalla != null) {
-            pantalla.mostrarOpRecepcion();
+            pantalla.pedirSeleccionOpcionesDeRecepcion();
         }
     }
 
+    public void tomarBolsin(Bolsin bolsin) {
+        tomarSeleccionBolsin(bolsin);
+    }
+
+    public void tomarSeleccionBolsin(String numeroPrecinto) {
+        for (Bolsin b : bolsinesEnviados) {
+            if (coincidePrecinto(b.getNroPrecinto(), numeroPrecinto)) {
+                tomarSeleccionBolsin(b);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Método del Diagrama de Secuencias: buscarRemito()
+     * Obtiene los remitos asociados al bolsín y la información de sus documentaciones.
+     */
     public void buscarRemito() {
-        if (bolsinSeleccionado != null && pantalla != null) {
-            List<String> infoRemitos = bolsinSeleccionado.obtenerInformacionRemito();
-            pantalla.mostrarDetalleRemitos(infoRemitos);
+        if (bolsinSeleccionado == null) return;
+
+        this.datosRemitosBolsin.clear();
+        this.documentacionDelRemitos.clear();
+
+        // bolsin.obtenerRemito()
+        List<Remito> remitos = bolsinSeleccionado.obtenerRemito();
+        if (remitos != null && !remitos.isEmpty()) {
+            this.remitoSeleccionado = remitos.get(0);
+        }
+
+        this.datosRemitosBolsin = bolsinSeleccionado.obtenerInformacionRemito();
+        this.documentacionDelRemitos = bolsinSeleccionado.obtenerDocumentaciones();
+
+        if (pantalla != null) {
+            pantalla.mostrarDatosRemitoYDocumentacion(this.datosRemitosBolsin, this.documentacionDelRemitos);
         }
     }
 
-    /**
-     * Paso 8 del CU: El actor selecciona una opción de recepción.
-     * Opción 1: Contenido igual al registrado (Flujo Básico).
-     */
-    public void tomarOpRecepcion(int opcion) {
-        tomarOpRecepcion(opcion, new ArrayList<>());
-    }
+    // =========================================================================
+    // PASOS 7 Y 8: SELECCIÓN DE OPCIÓN DE RECEPCIÓN
+    // =========================================================================
 
     /**
-     * Paso 8 extendido para Flujos Alternativos A3, A4 y A5:
-     * Opción 2: Documentación faltante (A3).
-     * Opción 3: Documentación que no corresponde al destino (A4).
-     * Opción 4: Documentación para redirigir a otra área (A5).
+     * Método del Diagrama de Clases y Secuencias: tomarSelecOpcion()
      */
-    public void tomarOpRecepcion(int opcion, List<Documentacion> docsAfectados) {
-        this.opcionRecepcionSeleccionada = opcion;
+    public void tomarSelecOpcion(int opcion) {
+        tomarSelecOpcion(opcion, new ArrayList<>());
+    }
+
+    public void tomarSelecOpcion(int opcion, List<Documentacion> docsAfectados) {
+        this.opcionSelecc = opcion;
         this.documentacionesObservadas = (docsAfectados != null) ? docsAfectados : new ArrayList<>();
 
-        // Paso 9: Solicitar confirmación
+        // Paso 9: La pantalla solicita confirmación al actor
         if (pantalla != null) {
-            pantalla.solicitarConfirmacion();
+            pantalla.pedirConfirmacion();
         }
     }
 
+    public void tomarOpRecepcion(int opcion) {
+        tomarSelecOpcion(opcion);
+    }
+
+    public void tomarOpRecepcion(int opcion, List<Documentacion> docsAfectados) {
+        tomarSelecOpcion(opcion, docsAfectados);
+    }
+
     /**
-     * Flujo Alternativo A6: El actor cancela la operación y no confirma.
+     * Flujo Alternativo A6: Cancelación de la operación.
      */
     public void cancelarRecepcion() {
         System.out.println("[Gestor] Flujo Alternativo A6: Operación cancelada por el usuario.");
@@ -217,35 +313,44 @@ public class GestorRecepcionBolsin {
         }
     }
 
+    // =========================================================================
+    // PASO 10 Y 11: CONFIRMACIÓN Y ACTUALIZACIÓN DE ESTADOS (PATRÓN STATE)
+    // =========================================================================
+
     /**
-     * Paso 10 del CU: El actor confirma la recepción.
+     * Método del Diagrama de Secuencias: tomarConfirmacion()
+     * Registra la confirmación del actor y dispara la actualización de estados.
      */
     public void tomarConfirmacion() {
+        this.confirmacionRecepcion = true;
+
         // 1. Obtener fecha y hora actual del sistema
         this.fechaHoraActual = getFechaHoraActual();
 
-        // 2. Buscar los objetos Estado destino (Corrección 6)
-        buscarEstados();
+        // 2. Búsqueda de objetos Estado en el catálogo (Corrección 6 de DSI)
+        this.nuevoEstadoBolsin = buscarEstadoRecibidoCMDestino();
+        this.nuevoEstadoRemito = buscarEstadoRecibidoYAceptado();
+        buscarEstadosDocumentacion();
 
-        // 3. Actualizar estados del Bolsín, Remitos y Documentaciones (Patrón State)
+        // 3. [PATRÓN STATE] Actualizar estados de Bolsín, Remitos y Documentaciones
         actualizarEstados();
 
-        // 4. Persistir en la base de datos SQLite
+        // 4. Persistir los cambios en la base de datos relacional SQLite
         guardarEnBaseDeDatos();
 
-        // 5. Notificar a cada Comisión Médica de origen (CU 29: Notificar recepción)
-        notificarACadaCM();
+        // 5. Paso 12: CU 29 Notificar recepción a la Comisión Médica de origen
+        llamarCU29NotifRecepcionBolsin();
 
-        // 6. Informar éxito al usuario y finalizar CU
+        // 6. Notificar éxito al actor en la interfaz frontera y finalizar CU
         if (pantalla != null) {
-            String detalleOpcion = switch (opcionRecepcionSeleccionada) {
+            String detalleOpcion = switch (opcionSelecc) {
                 case 1 -> "Flujo Básico: Contenido íntegro recibido y aceptado.";
                 case 2 -> "Flujo Alternativo A3: Recepción con " + documentacionesObservadas.size() + " documento(s) faltante(s) marcado(s) como No Recibido.";
                 case 3 -> "Flujo Alternativo A4: Recepción con " + documentacionesObservadas.size() + " documento(s) rechazado(s) por no corresponder.";
                 case 4 -> "Flujo Alternativo A5: Recepción con " + documentacionesObservadas.size() + " documento(s) marcado(s) para redirigir.";
                 default -> "Recepción registrada.";
             };
-            pantalla.notificarExito("Recepción del Bolsín N° " + bolsinSeleccionado.getNumeroIdentificador() +
+            pantalla.notificarRecepcionBolsinRegistrada("Recepción del Bolsín N° " + bolsinSeleccionado.getNumeroBolsin() +
                     " registrada exitosamente.\n" + detalleOpcion);
         }
         finCU();
@@ -255,32 +360,41 @@ public class GestorRecepcionBolsin {
         return LocalDateTime.now();
     }
 
-    /**
-     * Corrección 6: Búsqueda polimórfica de Estados en el catálogo.
-     */
-    public void buscarEstados() {
-        // Búsqueda de Estado para Bolsín
+    // --- Búsqueda Polimórfica de Estados en el Catálogo (Corrección 6) ---
+
+    public EstadoBolsin buscarEstadoRecibidoCMDestino() {
         for (Estado e : catalogoEstados) {
-            if (e.esAmbitoBolsin() && e.esRecibidoYAceptadoEnCMDestino()) {
-                this.nuevoEstadoBolsin = (EstadoBolsin) e;
-                break;
+            if (e.esAmbitoBolsin() && (e.esRecibidoEnCMDestino() || e.esRecibidoYAceptadoEnCMDestino())) {
+                return (EstadoBolsin) e;
             }
         }
+        return new EstadoBolsinRecibidoEnCMDestino();
+    }
 
-        // Búsqueda de Estado para Remito
+    public EstadoRemito buscarEstadoRecibidoYAceptado() {
         for (Estado e : catalogoEstados) {
             if (e.esAmbitoRemito() && e.esRecibidoYAceptado()) {
-                this.nuevoEstadoRemito = (EstadoRemito) e;
-                break;
+                return (EstadoRemito) e;
             }
         }
+        return new EstadoRemitoRecibidoYAceptado();
+    }
 
-        // Búsqueda de Estados para Documentación (Patrón State)
+    public EstadoDocumentacion buscarEstadoRecibidaYAceptada() {
+        for (Estado e : catalogoEstados) {
+            if (e.esAmbitoDocumentacion() && e.esRecibidaYAceptada()) {
+                return (EstadoDocumentacion) e;
+            }
+        }
+        return new EstadoRecibidaYAceptada();
+    }
+
+    private void buscarEstadosDocumentacion() {
+        this.nuevoEstadoDocAceptada = buscarEstadoRecibidaYAceptada();
+
         for (Estado e : catalogoEstados) {
             if (e.esAmbitoDocumentacion()) {
-                if (e.esRecibidaYAceptada()) {
-                    this.nuevoEstadoDocAceptada = (EstadoDocumentacion) e;
-                } else if (e.esNoRecibido()) {
+                if (e.esNoRecibido()) {
                     this.nuevoEstadoDocNoRecibida = (EstadoDocumentacion) e;
                 } else if (e.esRecibidaYRechazada()) {
                     this.nuevoEstadoDocRechazada = (EstadoDocumentacion) e;
@@ -289,38 +403,50 @@ public class GestorRecepcionBolsin {
                 }
             }
         }
-
-        // Fallbacks por seguridad si el catálogo inicial estuviera incompleto
-        if (nuevoEstadoDocAceptada == null) nuevoEstadoDocAceptada = new EstadoRecibidaYAceptada();
         if (nuevoEstadoDocNoRecibida == null) nuevoEstadoDocNoRecibida = new EstadoNoRecibido();
         if (nuevoEstadoDocRechazada == null) nuevoEstadoDocRechazada = new EstadoRecibidaYRechazada();
         if (nuevoEstadoDocParaRedirigir == null) nuevoEstadoDocParaRedirigir = new EstadoParaRedirigir();
-        if (nuevoEstadoBolsin == null) nuevoEstadoBolsin = new EstadoBolsinRecibidoEnCMDestino();
-        if (nuevoEstadoRemito == null) nuevoEstadoRemito = new EstadoRemitoRecibidoYAceptado();
     }
 
+    public void buscarEstados() {
+        this.nuevoEstadoBolsin = buscarEstadoRecibidoCMDestino();
+        this.nuevoEstadoRemito = buscarEstadoRecibidoYAceptado();
+        buscarEstadosDocumentacion();
+    }
+
+    // =========================================================================
+    // [PATRÓN GOF STATE]: ACTUALIZACIÓN POLIMÓRFICA DE ESTADOS
+    // =========================================================================
     /**
-     * Corrección 7 y Patrón State:
-     * Delega la transición a las entidades. Documentacion delega a su EstadoDocumentacion actual.
+     * Paso 11 del CU 28:
+     * - El Bolsín pasa al estado Recibido en CM destino, registrando empleado.
+     * - Los Remitos pasan al estado Recibido y Aceptado.
+     * - La Documentación asociada pasa a Recibida y Aceptada (o estado alternativo),
+     *   registrando el empleado responsable.
+     * 
+     * DELEGACIÓN DEL PATRÓN STATE:
+     * En lugar de condicionales (if/switch) dentro del gestor o entidades,
+     * bolsin.recibir(...) propaga la llamada a Remito -> DetalleRemito -> Documentacion.
+     * Y Documentacion DELEGA su transición a su objeto 'estadoActual' polimórfico.
      */
     public void actualizarEstados() {
         if (bolsinSeleccionado == null) return;
 
-        EstadoDocumentacion estadoAlternativo = switch (opcionRecepcionSeleccionada) {
+        EstadoDocumentacion estadoAlternativo = switch (opcionSelecc) {
             case 2 -> nuevoEstadoDocNoRecibida;
             case 3 -> nuevoEstadoDocRechazada;
             case 4 -> nuevoEstadoDocParaRedirigir;
             default -> nuevoEstadoDocAceptada;
         };
 
-        if (opcionRecepcionSeleccionada == 1 || documentacionesObservadas.isEmpty()) {
-            // Flujo básico: todo aceptado
+        if (opcionSelecc == 1 || documentacionesObservadas.isEmpty()) {
+            // Flujo básico: todo conforme
             bolsinSeleccionado.recibir(
                     nuevoEstadoBolsin,
                     nuevoEstadoRemito,
                     nuevoEstadoDocAceptada,
                     fechaHoraActual,
-                    encargado
+                    usuarioLogueado
             );
         } else {
             // Flujos alternativos A3, A4, A5
@@ -330,55 +456,62 @@ public class GestorRecepcionBolsin {
                     nuevoEstadoDocAceptada,
                     estadoAlternativo,
                     documentacionesObservadas,
-                    opcionRecepcionSeleccionada,
+                    opcionSelecc,
                     fechaHoraActual,
-                    encargado
+                    usuarioLogueado
             );
         }
 
-        // Paso 11 del CU: Muestra y registra la actualización con el legajo del empleado responsable
+        // Paso 11: Exhibir en consola la actualización completa con Legajo del Responsable
         System.out.println("\n--------------------------------------------------------------------");
         System.out.println("[Paso 11 del CU 28] Actualización de Estados y Empleado Responsable:");
-        System.out.println("  • Bolsín #" + bolsinSeleccionado.getNumeroIdentificador() + " -> " + nuevoEstadoBolsin.getNombre() +
-                " [Responsable: " + (encargado != null ? encargado.getNombre() + " " + encargado.getApellido() +
-                " (Legajo: " + encargado.getLegajo() + ", ID: " + encargado.getId() + ")" : "N/A") + "]");
+        System.out.println("  • Bolsín #" + bolsinSeleccionado.getNumeroBolsin() + " -> " + nuevoEstadoBolsin.getNombre() +
+                " [Responsable: " + (usuarioLogueado != null ? usuarioLogueado.getNombre() + " " + usuarioLogueado.getApellido() +
+                " (Legajo: " + usuarioLogueado.getLegajo() + ", ID: " + usuarioLogueado.getId() + ")" : "N/A") + "]");
         System.out.println("  • Remitos asociados -> " + nuevoEstadoRemito.getNombre());
         for (Documentacion doc : bolsinSeleccionado.obtenerDocumentaciones()) {
             System.out.println("  • Documentación #" + doc.getNumeroIdentificador() + " (" + doc.getAsunto() + ") -> " +
                     doc.getEstadoActual().getNombre() +
-                    " [Responsable: " + (encargado != null ? encargado.getNombre() + " " + encargado.getApellido() +
-                    " (Legajo: " + encargado.getLegajo() + ", ID: " + encargado.getId() + ")" : "N/A") + "]");
+                    " [Responsable: " + (usuarioLogueado != null ? usuarioLogueado.getNombre() + " " + usuarioLogueado.getApellido() +
+                    " (Legajo: " + usuarioLogueado.getLegajo() + ", ID: " + usuarioLogueado.getId() + ")" : "N/A") + "]");
         }
         System.out.println("--------------------------------------------------------------------");
     }
 
-    /**
-     * Persiste los cambios de estado en la Base de Datos SQLite.
-     */
+    public void crearCEBolsin() {
+        if (bolsinSeleccionado != null && nuevoEstadoBolsin != null) {
+            bolsinSeleccionado.crearCEBolsin(nuevoEstadoBolsin, fechaHoraActual, usuarioLogueado);
+        }
+    }
+
     public void guardarEnBaseDeDatos() {
         if (bolsinSeleccionado != null) {
             RepositorioBolsin.getInstancia().guardarRecepcionBolsin(
                     bolsinSeleccionado,
-                    encargado,
+                    usuarioLogueado,
                     fechaHoraActual
             );
         }
     }
 
+    // =========================================================================
+    // PASO 12: NOTIFICACIÓN Y FINALIZACIÓN DEL CU
+    // =========================================================================
+
     /**
-     * Paso 12: CU 29 Notificar recepción de bolsín.
-     * Envía correo con la situación de la documentación recibida.
+     * Método del Diagrama de Secuencias: llamarCU29NotifRecepcionBolsin()
+     * Envía notificación a cada CM origen (CU 29: Notificar recepción de bolsín).
      */
-    public void notificarACadaCM() {
+    public void llamarCU29NotifRecepcionBolsin() {
         if (bolsinSeleccionado != null && bolsinSeleccionado.getCmOrigen() != null) {
             ComisionMedica origen = bolsinSeleccionado.getCmOrigen();
             String destinatario = origen.getEmail();
             if (destinatario == null || destinatario.isEmpty()) {
                 destinatario = "contacto@" + origen.getNombre().toLowerCase().replace(" ", "") + ".gov.ar";
             }
-            String asunto = "Notificación de Recepción de Bolsín N° " + bolsinSeleccionado.getNumeroIdentificador();
+            String asunto = "Notificación de Recepción de Bolsín N° " + bolsinSeleccionado.getNumeroBolsin();
 
-            String situacionDocs = switch (opcionRecepcionSeleccionada) {
+            String situacionDocs = switch (opcionSelecc) {
                 case 1 -> "Documentación recibida y aceptada íntegramente conforme a remito.";
                 case 2 -> "Se registraron " + documentacionesObservadas.size() + " documento(s) faltantes marcados como No Recibido.";
                 case 3 -> "Se rechazaron " + documentacionesObservadas.size() + " documento(s) por no pertenecer a esta CM.";
@@ -387,14 +520,18 @@ public class GestorRecepcionBolsin {
             };
 
             String cuerpo = "Estimados,\nSe ha registrado con éxito la recepción del Bolsín N° " +
-                    bolsinSeleccionado.getNumeroIdentificador() +
-                    " (Precinto: " + bolsinSeleccionado.getNumeroPrecinto() + ") en la " +
-                    cmEmpleado.getNombre() + " el " + fechaHoraActual +
-                    ".\nOperador responsable: " + (encargado != null ? encargado.getNombre() + " " + encargado.getApellido() : "Encargado") +
+                    bolsinSeleccionado.getNumeroBolsin() +
+                    " (Precinto: " + bolsinSeleccionado.getNroPrecinto() + ") en la " +
+                    (CMUsuarioLog != null ? CMUsuarioLog.getNombre() : "Comisión Médica") + " el " + fechaHoraActual +
+                    ".\nOperador responsable: " + (usuarioLogueado != null ? usuarioLogueado.getNombre() + " " + usuarioLogueado.getApellido() : "Encargado") +
                     ".\nSituación de la documentación: " + situacionDocs;
 
             MailServerService.getInstancia().enviarMail(destinatario, asunto, cuerpo);
         }
+    }
+
+    public void notificarACadaCM() {
+        llamarCU29NotifRecepcionBolsin();
     }
 
     public void finCU() {
@@ -407,12 +544,15 @@ public class GestorRecepcionBolsin {
 
     // Getters y Setters
     public Bolsin getBolsinSeleccionado() { return bolsinSeleccionado; }
-    public Empleado getEncargado() { return encargado; }
-    public ComisionMedica getCmEmpleado() { return cmEmpleado; }
+    public Empleado getUsuarioLogueado() { return usuarioLogueado; }
+    public Empleado getEncargado() { return usuarioLogueado; }
+    public ComisionMedica getCMUsuarioLog() { return CMUsuarioLog; }
+    public ComisionMedica getCmEmpleado() { return CMUsuarioLog; }
     public LocalDateTime getFechaHoraActualRegistrada() { return fechaHoraActual; }
     public EstadoBolsin getNuevoEstadoBolsin() { return nuevoEstadoBolsin; }
     public EstadoRemito getNuevoEstadoRemito() { return nuevoEstadoRemito; }
     public EstadoDocumentacion getNuevoEstadoDocAceptada() { return nuevoEstadoDocAceptada; }
     public List<Documentacion> getDocumentacionesObservadas() { return documentacionesObservadas; }
-    public int getOpcionRecepcionSeleccionada() { return opcionRecepcionSeleccionada; }
+    public int getOpcionRecepcionSeleccionada() { return opcionSelecc; }
+    public int getOpcionSelecc() { return opcionSelecc; }
 }

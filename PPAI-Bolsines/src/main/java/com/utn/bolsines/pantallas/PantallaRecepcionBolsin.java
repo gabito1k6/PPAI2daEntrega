@@ -83,8 +83,8 @@ public class PantallaRecepcionBolsin extends JFrame {
      * Paso 1 del CU: El actor selecciona la opción para registrar la recepción de un bolsín.
      * Instancia el GestorRecepcionBolsin con new() y dispara registrarRecepcion().
      */
-    public void opRegistrarRecepBolsin() {
-        habilitarPantalla();
+    public void opRegistrarRecepcionBolsin() {
+        habilitarVentana();
 
         // Corrección 4: Instanciación explícita con new() del Gestor
         this.gestor = new GestorRecepcionBolsin(
@@ -95,10 +95,17 @@ public class PantallaRecepcionBolsin extends JFrame {
                 this.empleadosRegistrados
         );
 
-        this.gestor.registrarRecepcion();
+        this.gestor.registrarRecepcionBolsin();
     }
 
-    public void habilitarPantalla() {
+    public void opRegistrarRecepBolsin() {
+        opRegistrarRecepcionBolsin();
+    }
+
+    /**
+     * Método del Diagrama de Clases y Secuencias: habilitarVentana()
+     */
+    public void habilitarVentana() {
         if (esInteractivo) {
             setVisible(true);
             toFront();
@@ -106,6 +113,10 @@ public class PantallaRecepcionBolsin extends JFrame {
         System.out.println("\n=======================================================");
         System.out.println(">>> PANTALLA: REGISTRAR RECEPCIÓN DE BOLSÍN ACTIVADA <<<");
         System.out.println("=======================================================");
+    }
+
+    public void habilitarPantalla() {
+        habilitarVentana();
     }
 
     private void construirInterfaz() {
@@ -276,7 +287,12 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 2 del CU: Muestra la Comisión Médica del usuario logueado.
+     * Método del Diagrama de Clases y Secuencias: mostrarCM()
      */
+    public void mostrarCM(String nombreCM) {
+        mostrarDatos(nombreCM);
+    }
+
     public void mostrarDatos(String nombreCM) {
         if (lblCMUsuario != null) {
             lblCMUsuario.setText("Comisión Médica de Destino: " + nombreCM);
@@ -290,7 +306,12 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 4 del CU: Muestra los bolsines encontrados en estado enviado para la CM.
+     * Método del Diagrama de Clases y Secuencias: solicitarSeleccionBolsin()
      */
+    public void solicitarSeleccionBolsin(List<Bolsin> bolsines) {
+        mostrarBolsin(bolsines);
+    }
+
     public void mostrarBolsin(List<Bolsin> bolsines) {
         this.bolsinesEnTabla = (bolsines != null) ? bolsines : new ArrayList<>();
 
@@ -345,16 +366,26 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 5 del CU: El actor selecciona un bolsín del listado.
+     * Método del Diagrama de Clases y Secuencias: tomarSeleccionBolsin()
      */
+    public void tomarSeleccionBolsin(Bolsin bolsin) {
+        tomarBolsin(bolsin);
+    }
+
     public void tomarBolsin(Bolsin bolsin) {
         if (gestor != null && bolsin != null) {
-            gestor.tomarBolsin(bolsin);
+            gestor.tomarSeleccionBolsin(bolsin);
         }
     }
 
     /**
      * Paso 6 del CU: Muestra los remitos y su documentación asociada.
+     * Método del Diagrama de Clases y Secuencias: mostrarDatosRemitoYDocumentacion()
      */
+    public void mostrarDatosRemitoYDocumentacion(List<String> remitosInfo, List<Documentacion> docs) {
+        mostrarDetalleRemitos(remitosInfo);
+    }
+
     public void mostrarDetalleRemitos(List<String> remitosInfo) {
         if (txtInfoRemitos != null) {
             StringBuilder sb = new StringBuilder();
@@ -384,7 +415,12 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 7 del CU: Habilita la selección de las opciones de recepción.
+     * Método del Diagrama de Clases y Secuencias: pedirSeleccionOpcionesDeRecepcion()
      */
+    public void pedirSeleccionOpcionesDeRecepcion() {
+        mostrarOpRecepcion();
+    }
+
     public void mostrarOpRecepcion() {
         if (panelOpciones != null) panelOpciones.setEnabled(true);
         if (btnConfirmar != null) btnConfirmar.setEnabled(true);
@@ -439,7 +475,12 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 9 del CU: Solicita confirmación.
+     * Método del Diagrama de Clases y Secuencias: pedirConfirmacion()
      */
+    public void pedirConfirmacion() {
+        solicitarConfirmacion();
+    }
+
     public void solicitarConfirmacion() {
         int opcion = gestor != null ? gestor.getOpcionRecepcionSeleccionada() : getOpcionSeleccionada();
         String detalle = switch (opcion) {
@@ -487,8 +528,13 @@ public class PantallaRecepcionBolsin extends JFrame {
 
     /**
      * Paso 12 del CU: Informa la ejecución exitosa del caso de uso.
+     * Método del Diagrama de Clases y Secuencias: notificarRecepcionBolsinRegistrada()
      * Muestra detalladamente la postcondición del Paso 11 incluyendo el legajo del responsable.
      */
+    public void notificarRecepcionBolsinRegistrada(String mensaje) {
+        notificarExito(mensaje);
+    }
+
     public void notificarExito(String mensaje) {
         String infoResp = "";
         if (sesionActual != null && sesionActual.getEmpleado() != null) {
