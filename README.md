@@ -16,78 +16,200 @@
   * **SQLite JDBC Driver** (`org.xerial:sqlite-jdbc:3.45.2.0`) para conexión a base de datos embebida.
   * **SLF4J** (`slf4j-api`, `slf4j-simple`) como logger facade para el driver JDBC.
 * **c. Tecnología:** **Escritorio** (Desktop GUI nativa).
-* **d. Base de datos y persistencia:** Base de datos relacional **SQLite** (`bolsines.db`) implementada bajo la arquitectura en capas con el patrón **DAO / Repository** (`RepositorioBolsin.java` y `ConexionBD.java`) y transacciones atómicas SQL.
+* **d. Base de datos y persistencia:** Base de datos relacional **SQLite** (`bolsines.db`) implementada bajo la arquitectura en capas con el patrón **DAO / Repository** (`RepositorioBolsin.java` y `ConexionBD.java`) y transacciones atómicas SQL (`setAutoCommit(false)`).
 
 ---
 
 ## 2. Arquitectura del Sistema y Consistencia con el Modelado
 
-El diseño respeta de manera estricta el patrón arquitectónico **Boundary - Control - Entity** (Frontera - Control - Entidad) de GRASP y las correcciones de la cátedra:
+El diseño respeta de manera estricta el patrón arquitectónico **Boundary - Control - Entity** (Frontera - Control - Entidad) de GRASP, la jerarquía de clases oficial de DSI (Grupo 8) y las correcciones de la cátedra:
 
 ```
 src/main/java/com/utn/bolsines/
 ├── Main.java                                <--- Punto de entrada del sistema
 ├── pantallas/                               <--- Capa FRONTERA / BOUNDARY
 │   ├── PantallaLogin.java                   <--- Inicio de sesión interactivo y selección de empleado
-│   ├── PantallaRecepcionBolsin.java         <--- GUI interactiva de escritorio (Swing)
+│   ├── PantRecepcionBolsin.java             <--- <<boundary>> Nombre exacto del Diagrama de Clases
+│   ├── PantallaRecepcionBolsin.java         <--- GUI interactiva de escritorio Swing (JFrame)
 │   ├── DialogoCrearBolsin.java              <--- Diálogo modal para registrar y enviar nuevos bolsines
 │   └── VisorBaseDatosDialog.java            <--- Visor de auditoría de SQLite en vivo (Bolsín, Remito, Doc)
 ├── gestores/                                <--- Capa CONTROLADOR / GESTOR
-│   └── GestorRecepcionBolsin.java           <--- Orquestador del flujo del CU 28 y filtro flexible
+│   └── GestorRecepcionBolsin.java           <--- <<control>> Orquestador del CU 28 y filtro flexible
 ├── entidades/                               <--- Capa DOMINIO / ENTIDADES
-│   ├── Bolsin.java                          <--- Contexto de Bolsín (Patrón Experto)
-│   ├── Remito.java                          <--- Jerarquía en cascada
-│   ├── DetalleRemito.java
-│   ├── Documentacion.java                   <--- Contexto del Patrón STATE (GoF)
-│   ├── CambioEstadoBolsin.java              <--- Trazabilidad histórica con legajo de responsable
-│   ├── CambioEstadoDocumentacion.java       <--- Trazabilidad histórica con legajo de responsable
-│   ├── ComisionMedica.java
-│   ├── Empleado.java                        <--- Identificador, legajo y asignación a CM
-│   ├── Sesion.java
-│   ├── TipoDocumento.java
-│   ├── Archivo.java
-│   └── estados/                             <--- Jerarquía del Patrón STATE
-│       ├── Estado.java                      <--- Interfaz con búsqueda polimórfica
-│       ├── EstadoDocumentacion.java         <--- Clase Abstracta STATE (GoF)
-│       ├── EstadoEnBolsinEnviado.java       <--- Estado Concreto inicial
+│   ├── Bolsin.java                          <--- <<entity>> Contexto de Bolsín (Patrón Experto)
+│   ├── Remito.java                          <--- <<entity>> Remito de envío y cascada hacia detalles
+│   ├── DetalleRemito.java                   <--- <<entity>> Renglón asociado a una documentación
+│   ├── Documentacion.java                   <--- <<entity>> Contexto del Patrón STATE (GoF)
+│   ├── CambioEstadoBolsin.java              <--- <<entity>> Trazabilidad histórica con legajo
+│   ├── CambioEstadoDocumentacion.java       <--- <<entity>> Trazabilidad histórica con legajo
+│   ├── ComisionMedica.java                  <--- <<entity>> Sedes médicas de origen y destino
+│   ├── Empleado.java                        <--- <<entity>> Identificador, legajo y asignación a CM
+│   ├── Usuario.java                         <--- <<entity>> Credenciales del operador autenticado
+│   ├── Sesion.java                          <--- <<entity>> Sesión activa en el sistema
+│   ├── TipoDocumento.java                   <--- <<entity>> Clasificación del documento médico/legal
+│   ├── Archivo.java                         <--- <<entity>> Archivo digital adjunto
+│   └── estados/                             <--- Jerarquía del Patrón STATE (GoF)
+│       ├── Estado.java                      <--- Interfaz con búsqueda polimórfica en catálogo
+│       ├── EstadoDocumentacion.java         <--- CLASE ABSTRACTA State (GoF) de Documentación
+│       ├── EstadoBolsin.java                <--- CLASE ABSTRACTA State de Bolsín
+│       ├── EstadoRemito.java                <--- CLASE ABSTRACTA State de Remito
+│       ├── EstadoEnBolsinEnviado.java       <--- Estado Concreto inicial del CU 28
 │       ├── EstadoRecibidaYAceptada.java     <--- Estado Concreto (Flujo Básico)
-│       ├── EstadoNoRecibido.java            <--- Estado Concreto (Flujo Alternativo A3)
-│       ├── EstadoRecibidaYRechazada.java    <--- Estado Concreto (Flujo Alternativo A4)
-│       ├── EstadoParaRedirigir.java         <--- Estado Concreto (Flujo Alternativo A5)
-│       ├── EstadoRegistrada.java
-│       ├── EstadoEnRemito.java
-│       ├── EstadoEnBolsinSaliente.java
-│       └── EstadoEnBaja.java
+│       ├── EstadoNoRecibido.java            <--- Estado Concreto (Flujo Alternativo A3: Faltante)
+│       ├── EstadoRecibidaYRechazada.java    <--- Estado Concreto (Flujo Alternativo A4: Rechazo)
+│       ├── EstadoParaRedirigir.java         <--- Estado Concreto (Flujo Alternativo A5: Redirección)
+│       ├── EstadoRegistrada.java            <--- Estado Concreto inicial tras CU 7
+│       ├── EstadoEnRemito.java              <--- Estado Concreto (asociado a remito)
+│       ├── EstadoEnBolsinSaliente.java      <--- Estado Concreto (en bolsín listo para retiro)
+│       └── EstadoEnBaja.java                <--- Estado Concreto final de baja
 ├── persistencia/                            <--- Capa PERSISTENCIA / REPOSITORIO
-│   ├── ConexionBD.java                      <--- Conexión SQLite y esquema DDL
-│   └── RepositorioBolsin.java               <--- DAO con consultas y transacciones SQL
+│   ├── ConexionBD.java                      <--- Conexión SQLite y esquema DDL relacional
+│   └── RepositorioBolsin.java               <--- DAO con consultas y transacciones SQL atómicas
 └── servicios/
     └── MailServerService.java               <--- Simulación CU 29 (Notificación a CM Origen)
 ```
 
 ---
 
-## 3. Aplicación del Patrón de Diseño GoF: STATE
+## 3. Consistencia Total con los Diagramas de DSI (Grupo 8)
 
-El rediseño del CU 28 aplica el patrón **State** de Gamma (GoF) sobre la clase **`Documentacion`**:
+Para garantizar consistencia absoluta con el **Diagrama de Clases**, el **Diagrama de Secuencias** y la **Máquina de Estados de Documentación** del Grupo 8, cada método y relación del diseño fue implementado de forma nominal y funcional:
 
-1. **Contexto (`Documentacion`):**
-   * Mantiene una referencia a su estado actual mediante el atributo polimórfico `private EstadoDocumentacion estadoActual`.
-   * En lugar de evaluar sentencias condicionales (`if/switch`) según el estado, **delega la ejecución de los eventos** (`recibir()`, `noRecibir()`, `rechazar()`, `redirigir()`) a su objeto estado actual.
-2. **Clase Abstracta State (`EstadoDocumentacion`):**
-   * Define la interfaz de comportamiento para todos los estados posibles de la documentación.
-   * Provee implementaciones por defecto que lanzan `UnsupportedOperationException("Transición no válida")` para evitar transiciones ilegales en el ciclo de vida.
-3. **Estados Concretos (`EstadoEnBolsinEnviado`, `EstadoRecibidaYAceptada`, `EstadoNoRecibido`, etc.):**
-   * Cada estado concreto implementa la transición válida. Por ejemplo:
-     * Desde `EstadoEnBolsinEnviado`, invocar `recibir(...)` transiciona el contexto a `EstadoRecibidaYAceptada`.
-     * Invocar `noRecibir(...)` transiciona el contexto a `EstadoNoRecibido`.
-     * Invocar `rechazar(...)` transiciona a `EstadoRecibidaYRechazada`.
-4. **Trazabilidad de Estados (Corrección 7 de DSI):**
-   * Al ejecutarse `actualizarEstado(...)`, la entidad busca su `CambioEstadoDocumentacion` actual (donde `sosActual() == true`), le asigna la `fechaHoraFin` al instante de la recepción, e instancia el nuevo `CambioEstadoDocumentacion` con `fechaHoraInicio` y el `Empleado` responsable.
+### A. Capa Frontera: `<<boundary>> PantRecepcionBolsin`
+* **Nombres de Métodos exactos:**
+  * `opRegistrarRecepcionBolsin()`: Disparado por el actor al ingresar a la opción.
+  * `habilitarVentana()`: Habilita y hace visible la ventana gráfica interactiva.
+  * `mostrarCM(nombreCM)`: Muestra la Comisión Médica activa del usuario logueado (Paso 2).
+  * `solicitarSeleccionBolsin(bolsines)`: Presenta en la tabla los bolsines en estado *Enviado* para la CM destino (Paso 4).
+  * `tomarSeleccionBolsin(bolsin)`: Toma la fila o bolsín seleccionado por el actor (Paso 5).
+  * `mostrarDatosRemitoYDocumentacion(remitos, docs)`: Exhibe los remitos y documentos contenidos (Paso 6).
+  * `pedirSeleccionOpcionesDeRecepcion()`: Habilita los radio buttons de opciones de recepción (Paso 7).
+  * `tomarSelecOpcion(opcion)`: Registra la opción elegida (Paso 8: Básica o Alternativas A3, A4, A5).
+  * `pedirConfirmacion()`: Solicita confirmación explícita al actor (Paso 9).
+  * `tomarConfirmacion()`: Envía la confirmación al gestor (Paso 10).
+  * `notificarRecepcionBolsinRegistrada(mensaje)`: Informa la finalización exitosa (Paso 12).
+
+### B. Capa Control: `<<control>> GestorRecepcionBolsin`
+* **Atributos exactos del Diagrama de Clases:**
+  * `usuarioLogueado`: Referencia al `Empleado` autenticado.
+  * `CMUsuarioLog`: `ComisionMedica` asignada al usuario.
+  * `bolsinesEnviados`: Lista de bolsines en estado enviado para el destino.
+  * `CMOrigen`: `ComisionMedica` remitente del bolsín seleccionado.
+  * `datosBolsin`: Lista de cadenas con precinto y origen para presentación.
+  * `nroPrecinto`: Precinto del bolsín en tratamiento.
+  * `bolsinSeleccionado`: Referencia al `Bolsin` elegido.
+  * `datosRemitosBolsin`: Líneas descriptivas de remitos.
+  * `documentacionDelRemitos`: Objetos `Documentacion` contenidos.
+  * `opcionSelecc`: Entero con la opción seleccionada (1 a 4).
+  * `confirmacionRecepcion`: Booleano de confirmación.
+  * `fechaHoraActual`: Marca temporal obtenida en `getFechaHoraActual()`.
+  * `remitoSeleccionado`: `Remito` activo en la evaluación.
+* **Métodos exactos del Diagrama de Secuencias:**
+  * `registrarRecepcionBolsin()`
+  * `pedirUsuarioLogueado()` -> navega por la `Sesion` activa.
+  * `buscarCM()` -> invoca `usuarioLogueado.buscarCM()`.
+  * `buscarBolsines()` -> aplica Patrón Experto sobre cada Bolsín.
+  * `buscarDatosBolsin()` -> invoca `mostrarTuCMOrigen()` y `getNroPrecinto()`.
+  * `tomarSeleccionBolsin(...)`
+  * `buscarRemito()` -> invoca `bolsin.obtenerRemito()`.
+  * `tomarSelecOpcion(...)`
+  * `tomarConfirmacion()`
+  * `getFechaHoraActual()`
+  * `buscarEstadoRecibidoCMDestino()`
+  * `buscarEstadoRecibidoYAceptado()`
+  * `buscarEstadoRecibidaYAceptada()`
+  * `actualizarEstados()` -> invoca `bolsin.recibir(...)` y delega al Patrón State.
+  * `crearCEBolsin()` -> actualiza el historial del bolsín.
+  * `llamarCU29NotifRecepcionBolsin()` -> envía notificación a la CM remitente.
+  * `finCU()`
+
+### C. Capa Dominio / Entidades
+* **`Bolsin`:** Métodos exactos: `esTuCMDestino(cm)`, `sosEnviado()`, `getNumeroBolsin()`, `mostrarTuCMOrigen()`, `getNroPrecinto()`, `obtenerRemito()`, `recibir()`, `crearCEBolsin()`.
+* **`Remito`:** Métodos exactos: `getNumero()`, `obtenerInfoDocumentacion()`, `recibirYAceptar()`.
+* **`DetalleRemito`:** Métodos exactos: `actualizarEstadoDoc()`, `obtenerDatosDetalle()`.
+* **`Empleado`:** Métodos exactos: `buscarCM()`, `esTuUsuario(nombre)`. Atributos: `nombre`, `apellido`, `email`, `legajo`.
+* **`Usuario`:** Entidad con atributos `nombre`, `contraseña`, vinculada con `Empleado` y `Sesion`.
+* **`Sesion`:** Atributos `fechaHoraInicio`, `fechaHoraFin`, `usuario: Usuario` y método `getUsuario()`.
+* **`CambioEstadoBolsin` y `CambioEstadoDocumentacion`:** Métodos `sosActual()`, `sosEnviado()`, `setFechaHoraFin()`, `new()`.
+* **`Estado`:** Interfaz común con `esAmbitoBolsin()`, `esAmbitoRemito()`, `esAmbitoDocumentacion()`, `esEnviado()`, `esRecibidoEnCMDestino()`, `esRecibidoYAceptado()`, `esRecibidaYAceptada()`.
 
 ---
 
-## 4. Flujos Implementados y Verificados
+## 4. Aplicación del Patrón de Diseño GoF: STATE
+
+El rediseño del CU 28 aplica el patrón **State** de Gamma (GoF) sobre la clase **`Documentacion`** y cumple con las Correcciones 1, 3 y 7 de la cátedra:
+
+```
+                  +-----------------------+
+                  |     Documentacion     | <--- CONTEXTO
+                  +-----------------------+
+                  | - estadoActual        |
+                  +-----------------------+
+                  | + recibir(...)        | ---+
+                  | + noRecibir(...)      |    |
+                  | + rechazar(...)       |    | Delega al estado actual
+                  | + redirigir(...)      |    | obtenerEstadoActual().recibir(this, ...)
+                  +-----------------------+    |
+                              |                |
+                              v                v
+                 +--------------------------+
+                 | <<abstract>>             |
+                 | EstadoDocumentacion      | <--- CLASE ABSTRACTA STATE
+                 +--------------------------+
+                 | + recibir(...)           | (Lanza UnsupportedOperationException)
+                 | + noRecibir(...)         |
+                 | + rechazar(...)          |
+                 | + redirigir(...)         |
+                 +--------------------------+
+                              ^
+                              | (Herencia: extends)
+        +---------------------+---------------------+---------------------+
+        |                     |                     |                     |
++-------------------+ +-------------------+ +-------------------+ +-------------------+
+| EstadoEnBolsin    | | EstadoRecibida    | | EstadoNoRecibido  | | EstadoPara        |
+| Enviado           | | YAceptada         | |                   | | Redirigir         |
++-------------------+ +-------------------+ +-------------------+ +-------------------+
+| (CU 28 Inicial)   | | (Flujo Básico)    | | (Flujo A3 Falt.)  | | (Flujo A5 Redir.) |
++-------------------+ +-------------------+ +-------------------+ +-------------------+
+```
+
+### A. Clases Abstractas vs. Estados Concretos (Herencia)
+1. **Clase Abstracta State (`EstadoDocumentacion`):**
+   * Es una clase abstracta (`public abstract class EstadoDocumentacion implements Estado`).
+   * Define la firma de todos los eventos del ciclo de vida de la documentación (`recibir`, `noRecibir`, `rechazar`, `redirigir`, `registrar`, `registrarEnRemito`, `agregarEnBolsin`, `registrarRetiro`, `darDeBaja`).
+   * Provee implementaciones por defecto que lanzan `UnsupportedOperationException("Transición no válida")` para bloquear transiciones ilegales.
+2. **Estados Concretos (`extends EstadoDocumentacion`):**
+   * Heredan de `EstadoDocumentacion` e implementan **únicamente las transiciones válidas** de la máquina de estados.
+   * `EstadoEnBolsinEnviado`: Al recibir la llamada `recibir(...)`, transiciona a `EstadoRecibidaYAceptada`. Al recibir `noRecibir(...)`, transiciona a `EstadoNoRecibido`. Al recibir `rechazar(...)`, transiciona a `EstadoRecibidaYRechazada`. Al recibir `redirigir(...)`, transiciona a `EstadoParaRedirigir`.
+
+### B. Dónde se Delega la Transición al Estado Actual
+En [Documentacion.java](file:///c:/Users/ggara_qabgn/Documents/4toUTN/DSI/PPAI%202da%20Entrega/PPAI-Bolsines/src/main/java/com/utn/bolsines/entidades/Documentacion.java#L70-L160), la clase Contexto **no evalúa condiciones (sin sentencias if/switch)**:
+```java
+// [PATRÓN STATE] DELEGA la transición a 'estadoActual.recibir(this, ...)'
+public void recibir(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+    obtenerEstadoActual().recibir(this, nuevoEstado, fechaHora, responsable);
+}
+
+// [PATRÓN STATE] DELEGA la transición a 'estadoActual.noRecibir(this, ...)'
+public void noRecibir(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+    obtenerEstadoActual().noRecibir(this, nuevoEstado, fechaHora, responsable);
+}
+```
+Y en [EstadoEnBolsinEnviado.java](file:///c:/Users/ggara_qabgn/Documents/4toUTN/DSI/PPAI%202da%20Entrega/PPAI-Bolsines/src/main/java/com/utn/bolsines/entidades/estados/EstadoEnBolsinEnviado.java#L30-L75), el estado actual concreta el cambio sobre el contexto:
+```java
+@Override
+public void recibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+    EstadoDocumentacion destino = (nuevoEstado != null) ? nuevoEstado : new EstadoRecibidaYAceptada();
+    contexto.crearCE(destino, fechaHora, responsable);
+}
+```
+
+### C. Trazabilidad con Responsable y Legajo (Corrección 7 y Paso 11)
+El método `crearCE(...)` de `Documentacion` cierra el cambio de estado anterior asignándole `fechaHoraFin` al instante de la recepción, crea el nuevo objeto `CambioEstadoDocumentacion` con `fechaHoraInicio` y asocia al `Empleado` responsable, almacenando y exponiendo su **Legajo**.
+
+---
+
+## 5. Flujos Implementados y Verificados
 
 El sistema implementa el **Flujo Básico** y **5 Flujos Alternativos** especificados en el Requerimiento Funcional, junto con las funcionalidades clave de la 2da Entrega:
 
@@ -106,7 +228,7 @@ El sistema implementa el **Flujo Básico** y **5 Flujos Alternativos** especific
 
 ---
 
-## 5. Arquitectura de Persistencia: Esquema en Capas vs. Super Objeto Persistente
+## 6. Arquitectura de Persistencia: Esquema en Capas vs. Super Objeto Persistente
 
 Para la persistencia de datos se implementó un **Esquema de Persistencia en Capas (Capa de Persistencia Separada / Patrón DAO - Repository)**, descartando explícitamente el enfoque de *Super Objeto Persistente (Active Record)*:
 
@@ -130,7 +252,7 @@ El sistema cuenta con un motor de base de datos relacional SQLite real en archiv
 
 ---
 
-## 6. ¿Cómo Inspeccionar la Base de Datos en Vivo?
+## 7. ¿Cómo Inspeccionar la Base de Datos en Vivo?
 
 Existen tres formas directas de ver cómo cambian los estados en la base de datos mientras el programa corre:
 
@@ -152,7 +274,7 @@ Se abre una ventana paralela (`VisorBaseDatosDialog.java`) con las tablas de SQL
 ### Forma 2: Con DB Browser for SQLite (Software externo)
 1. Descargá o abrí [DB Browser for SQLite](https://sqlitebrowser.org/).
 2. Abrí el archivo `bolsines.db` ubicado en la raíz del proyecto.
-3. Andá a la pestaña *"Examinar datos"*, seleccioná la tabla `documentacion` o `bolsin`, y presioná `F5` (Refrescar) para ver las actualizaciones en vivo.
+3. Andá a la pestaña *"Examinar datos"*, seleccioná la tabla `documentacion`, `remito` o `bolsin`, y presioná `F5` (Refrescar).
 
 ### Forma 3: Desde IntelliJ IDEA (Database Tools)
 1. En IntelliJ IDEA, abrí la pestaña **Database** (a la derecha).
@@ -162,18 +284,18 @@ Se abre una ventana paralela (`VisorBaseDatosDialog.java`) con las tablas de SQL
 
 ---
 
-## 7. Instrucciones de Ejecución
+## 8. Instrucciones de Ejecución y Guía de Pruebas
 
 ### Opción A: Desde Windows (Doble clic)
-* **`ejecutar.bat`**: Inicia la interfaz gráfica interactiva Swing.
-* **`ejecutar_consola.bat`**: Ejecuta la demostración automatizada paso a paso por consola.
+* **`ejecutar.bat`**: Inicia la interfaz gráfica interactiva Swing comenzando por la pantalla de login.
+* **`ejecutar_consola.bat`**: Ejecuta la demostración automatizada paso a paso por consola validando todos los flujos.
 
-### Opción B: Por Línea de Comandos
+### Opción B: Por Línea de Comandos (PowerShell / CMD)
 ```powershell
-# Modo Gráfico Interactivo (Swing)
+# Modo Gráfico Interactivo (Login + Swing Desktop)
 java -cp "lib/*;PPAI-Bolsines/lib/*;out/production/PPAI 2da Entrega;PPAI-Bolsines/bin" com.utn.bolsines.Main
 
-# Modo Demostración Consola
+# Modo Demostración Consola Automatizada
 java -cp "lib/*;PPAI-Bolsines/lib/*;out/production/PPAI 2da Entrega;PPAI-Bolsines/bin" com.utn.bolsines.Main --consola
 ```
 
@@ -181,3 +303,13 @@ java -cp "lib/*;PPAI-Bolsines/lib/*;out/production/PPAI 2da Entrega;PPAI-Bolsine
 1. Asegurarse de que la carpeta `lib/` esté agregada como biblioteca (*Clic derecho en `lib` -> Add as Library...*).
 2. Abrir `src/main/java/com/utn/bolsines/Main.java`.
 3. Clic derecho -> **Run 'Main.main()'**.
+
+---
+
+### Guía Rápida de Demostración para la Defensa
+
+1. **Login:** Iniciar sesión con **Ana González (CM Villa María)**.
+2. **Flujo Básico:** Seleccionar el Bolsín #301 (`PREC-998877`), dejar elegida la Opción 1, hacer clic en *"Confirmar Recepción"*. Verificar que pasa a *Recibido en CM Destino* y los documentos a *Recibida y Aceptada*, registrando a Ana González (`LEG-2002`).
+3. **Filtro Flexible (Flujo A1):** Escribir `PREC-000000` para comprobar el mensaje de no encontrado (A1). Luego escribir sólo los números `445566` para encontrar de inmediato el Bolsín #302.
+4. **Flujo A3 (Faltante):** Con el Bolsín #302, seleccionar la Opción 2, tildar el `Doc #1003` y confirmar. Verificar que la documentación transiciona a `No Recibido`.
+5. **Auditoría en vivo:** Abrir el botón *"📊 Ver Base de Datos en Vivo"* para mostrarle al docente cómo cambió el estado en las tablas `bolsin`, `remito` y `documentacion` y cómo se registró el legajo del operador.
