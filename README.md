@@ -117,70 +117,103 @@ Para garantizar consistencia absoluta con el **Diagrama de Clases**, el **Diagra
   * `getFechaHoraActual()`
   * `buscarEstadoRecibidoCMDestino()`
   * `buscarEstadoRecibidoYAceptado()`
-  * `buscarEstadoRecibidaYAceptada()`
-  * `actualizarEstados()` -> invoca `bolsin.recibir(...)` y delega al Patrón State.
-  * `crearCEBolsin()` -> actualiza el historial del bolsín.
+  * `crearCEBolsin()`
+  * `actualizarEstados()` -> invoca `bolsin.recibir(fechaHora, responsable)` y delega al Patrón State.
+  * `guardarEnBaseDeDatos()`
   * `llamarCU29NotifRecepcionBolsin()` -> envía notificación a la CM remitente.
   * `finCU()`
 
 ### C. Capa Dominio / Entidades
-* **`Bolsin`:** Métodos exactos: `esTuCMDestino(cm)`, `sosEnviado()`, `getNumeroBolsin()`, `mostrarTuCMOrigen()`, `getNroPrecinto()`, `obtenerRemito()`, `recibir()`, `crearCEBolsin()`.
-* **`Remito`:** Métodos exactos: `getNumero()`, `obtenerInfoDocumentacion()`, `recibirYAceptar()`.
-* **`DetalleRemito`:** Métodos exactos: `actualizarEstadoDoc()`, `obtenerDatosDetalle()`.
-* **`Empleado`:** Métodos exactos: `buscarCM()`, `esTuUsuario(nombre)`. Atributos: `nombre`, `apellido`, `email`, `legajo`.
+* **`Bolsin`:** Métodos exactos: `esTuCMDestino(cm)`, `sosEnviado()`, `getNumeroBolsin()`, `mostrarTuCMOrigen()`, `getNroPrecinto()`, `obtenerRemito()`, `recibir(fechaHora, responsable)`, `crearCEBolsin()`.
+* **`Remito`:** Métodos exactos: `getNumero()`, `obtenerInfoDocumentacion()`, `recibirYAceptar(fechaHora, responsable)`.
+* **`DetalleRemito`:** Atributo: `areaCMCDestino`. Métodos exactos: `actualizarEstadoDoc(fechaHora, responsable)`, `obtenerDatosDetalle()`.
+* **`Documentacion`:** Métodos exactos: `recibir(this, fechaHora, ce, responsable)`, `buscarCambioEstadoActual()`, `crearCE(fechaHoraInicio, responsable, estado)`, `setEstadoActual(estado)`, `setCambioEstado(ce)`, `registrarFaltaDocumentacion()`, `redirigirBolsin()`.
+* **`Empleado`:** Métodos exactos: `buscarCM()`, `esTuUsuario(user: Usuario)`. Atributos: `nombre`, `apellido`, `email`, `legajo`.
 * **`Usuario`:** Entidad con atributos `nombre`, `contraseña`, vinculada con `Empleado` y `Sesion`.
 * **`Sesion`:** Atributos `fechaHoraInicio`, `fechaHoraFin`, `usuario: Usuario` y método `getUsuario()`.
-* **`CambioEstadoBolsin` y `CambioEstadoDocumentacion`:** Métodos `sosActual()`, `sosEnviado()`, `setFechaHoraFin()`, `new()`.
-* **`Estado`:** Interfaz común con `esAmbitoBolsin()`, `esAmbitoRemito()`, `esAmbitoDocumentacion()`, `esEnviado()`, `esRecibidoEnCMDestino()`, `esRecibidoYAceptado()`, `esRecibidaYAceptada()`.
+* **`CambioEstadoBolsin`:** Métodos `sosActual()`, `sosEnviado()`, `setFechaHoraFin()`, `new(fechaHoraInicio)`.
+* **`CambioEstadoDocumentacion`:** Métodos `sosActual()`, `setFechaHoraFin()`, `new(fechaHoraInicio, responsable, estado)`.
+* **`Estado`:** Interfaz común con `esAmbitoBolsin()`, `esAmbitoRemito()`, `esAmbitoDocumentacion()`, `esEnviado()`, `esRecibidoEnCMDestino()`, `esRecibidoYAceptado()`.
 
 ---
 
-## 4. Aplicación del Patrón de Diseño GoF: STATE
+## 4. Aplicación del Patrón de Diseño GoF: STATE (Rediseño Grupo 8)
 
-El rediseño del CU 28 aplica el patrón **State** de Gamma (GoF) sobre la clase **`Documentacion`** y cumple con las Correcciones 1, 3 y 7 de la cátedra:
+El rediseño del CU 28 aplica el patrón **State** de Gamma (GoF) sobre la clase **`Documentacion`** y reproduce con precisión matemática los diagramas de clases y secuencias del Grupo 8:
 
 ```
-                  +-----------------------+
-                  |     Documentacion     | <--- CONTEXTO
-                  +-----------------------+
-                  | - estadoActual        |
-                  +-----------------------+
-                  | + recibir(...)        | ---+
-                  | + noRecibir(...)      |    |
-                  | + rechazar(...)       |    | Delega al estado actual
-                  | + redirigir(...)      |    | obtenerEstadoActual().recibir(this, ...)
-                  +-----------------------+    |
-                              |                |
-                              v                v
-                 +--------------------------+
-                 | <<abstract>>             |
-                 | EstadoDocumentacion      | <--- CLASE ABSTRACTA STATE
-                 +--------------------------+
-                 | + recibir(...)           | (Lanza UnsupportedOperationException)
-                 | + noRecibir(...)         |
-                 | + rechazar(...)          |
-                 | + redirigir(...)         |
-                 +--------------------------+
-                              ^
-                              | (Herencia: extends)
-        +---------------------+---------------------+---------------------+
-        |                     |                     |                     |
-+-------------------+ +-------------------+ +-------------------+ +-------------------+
-| EstadoEnBolsin    | | EstadoRecibida    | | EstadoNoRecibido  | | EstadoPara        |
-| Enviado           | | YAceptada         | |                   | | Redirigir         |
-+-------------------+ +-------------------+ +-------------------+ +-------------------+
-| (CU 28 Inicial)   | | (Flujo Básico)    | | (Flujo A3 Falt.)  | | (Flujo A5 Redir.) |
-+-------------------+ +-------------------+ +-------------------+ +-------------------+
+                  +----------------------------------------------+
+                  |                Documentacion                 | <--- CONTEXTO
+                  +----------------------------------------------+
+                  | - estadoActual: EstadoDocumentacion          |
+                  | - cambioEstado: List<CambioEstadoDoc>        |
+                  +----------------------------------------------+
+                  | + recibir(fechaHora, responsable)            | ---+
+                  | + buscarCambioEstadoActual(): CambioEstado   |    | Delega al estado actual
+                  | + crearCE(fechaHora, resp, estado): CE       |    | estadoActual.recibir(this, fechaHora, ce, resp)
+                  | + setEstadoActual(estado): void              |    |
+                  | + setCambioEstado(ce): void                  |    |
+                  +----------------------------------------------+    |
+                                |                                     |
+                                v                                     v
+                  +----------------------------------------------+
+                  | <<abstract>>                                 |
+                  | EstadoDocumentacion                          | <--- CLASE ABSTRACTA STATE
+                  +----------------------------------------------+
+                  | + recibir(this, fechaHora, ce, resp): void   | (Lanza UnsupportedOperationException)
+                  | + registrarFaltaDocumentacion(): void        |
+                  | + redirigirBolsin(): void                    |
+                  | + registrar(): void                          |
+                  | + registrarEnRemito(): void                  |
+                  | + agregarEnBolsin(): void                    |
+                  | + modificar(): void                          |
+                  | + darDeBaja(): void                          |
+                  | + registrarRetiro(): void                    |
+                  +----------------------------------------------+
+                                ^
+                                | (Herencia: extends)
+        +-----------------------+-----------------------+-----------------------+
+        |                       |                       |                       |
++-------------------+   +-------------------+   +-------------------+   +-------------------+
+| EnBolsinEnviado   |   | RecibidaYAceptada |   | NoRecibida        |   | ParaRedirigir     |
++-------------------+   +-------------------+   +-------------------+   +-------------------+
+| + recibir(...)    |   | + new()           |   | + darDeBaja()     |   | + recibir()       |
+| + crearRecibida   |   +-------------------+   | + registrar()     |   | + new()           |
+|   Aceptada()      |   (Flujo Básico CU 28)    | + new()           |   +-------------------+
+| + crearCE(...)    |                           +-------------------+   (Flujo A5 Redir.)
+| + new()           |                           (Flujo A3 Faltante)
++-------------------+
+(Estado Inicial CU 28)
 ```
 
 ### A. Clases Abstractas vs. Estados Concretos (Herencia)
 1. **Clase Abstracta State (`EstadoDocumentacion`):**
    * Es una clase abstracta (`public abstract class EstadoDocumentacion implements Estado`).
-   * Define la firma de todos los eventos del ciclo de vida de la documentación (`recibir`, `noRecibir`, `rechazar`, `redirigir`, `registrar`, `registrarEnRemito`, `agregarEnBolsin`, `registrarRetiro`, `darDeBaja`).
+   * Define la firma de todos los eventos del ciclo de vida de la documentación (`recibir`, `registrarFaltaDocumentacion`, `redirigirBolsin`, `registrar`, `registrarEnRemito`, `agregarEnBolsin`, `modificar`, `darDeBaja`, `registrarRetiro`).
    * Provee implementaciones por defecto que lanzan `UnsupportedOperationException("Transición no válida")` para bloquear transiciones ilegales.
 2. **Estados Concretos (`extends EstadoDocumentacion`):**
-   * Heredan de `EstadoDocumentacion` e implementan **únicamente las transiciones válidas** de la máquina de estados.
-   * `EstadoEnBolsinEnviado`: Al recibir la llamada `recibir(...)`, transiciona a `EstadoRecibidaYAceptada`. Al recibir `noRecibir(...)`, transiciona a `EstadoNoRecibido`. Al recibir `rechazar(...)`, transiciona a `EstadoRecibidaYRechazada`. Al recibir `redirigir(...)`, transiciona a `EstadoParaRedirigir`.
+   * Heredan de `EstadoDocumentacion` e implementan **únicamente las transiciones válidas** de la máquina de estados según el Diagrama de Clases (Grupo 8):
+     * `EnBolsinEnviado`
+     * `RecibidaYAceptada`
+     * `RecibidaYRechazada`
+     * `NoRecibida`
+     * `ParaRedirigir`
+     * `DeBaja`
+     * `EnBolsinSaliente`
+     * `EnRemito`
+     * `Registrada`
+
+### B. Secuencia Exacta del Patrón State en el CU 28 (Flujo Básico)
+De acuerdo al **Diagrama de Secuencia del Patrón State (Grupo 8)**, el Gestor **no busca estados de documentación en el catálogo**; el proceso es 100% autónomo y polimórfico:
+1. `DetalleRemito` invoca `actualizarEstadoDoc(fechaHora, responsable)` y llama a `Documentacion.recibir(fechaHora, responsable)`.
+2. `Documentacion` delega en su estado actual: `estadoActual.recibir(this, fechaHora, historialEstados, responsable)`.
+3. `:EnBolsinEnviado` orquesta la transición:
+   * Pide el cambio de estado actual al contexto: `Documentacion.buscarCambioEstadoActual()` (el cual evalúa `actual.sosActual()`).
+   * Cierra el cambio de estado anterior: `actual.setFechaHoraFin(fechaHora)`.
+   * Crea el nuevo estado invocando su propio método: `crearRecibidaAceptada(): Estado` (el cual ejecuta `new RecibidaYAceptada()`).
+   * Pide al contexto crear el nuevo cambio de estado: `Documentacion.crearCE(fechaHora, responsable, nuevoEstado)`.
+   * Asigna el nuevo estado al contexto: `Documentacion.setEstadoActual(nuevoEstado)`.
+   * Registra el nuevo cambio de estado en el historial: `Documentacion.setCambioEstado(nuevoCE)`.
 
 ### B. Dónde se Delega la Transición al Estado Actual
 En [Documentacion.java](file:///c:/Users/ggara_qabgn/Documents/4toUTN/DSI/PPAI%202da%20Entrega/PPAI-Bolsines/src/main/java/com/utn/bolsines/entidades/Documentacion.java#L70-L160), la clase Contexto **no evalúa condiciones (sin sentencias if/switch)**:

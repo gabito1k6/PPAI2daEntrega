@@ -63,8 +63,8 @@ public class Main {
             TipoDocumento tipoExp = new TipoDocumento(1, "Expediente", "Expediente médico legal");
             TipoDocumento tipoDic = new TipoDocumento(2, "Dictamen", "Dictamen de incapacidad laboral");
 
-            Documentacion d1 = new Documentacion(1, 1001L, "Expediente Accidente Laboral - Juan Gómez", java.time.LocalDate.now().minusDays(2), tipoExp, cmCordoba, new EstadoEnBolsinEnviado(), empOrigen);
-            Documentacion d2 = new Documentacion(2, 1002L, "Dictamen Comisión Evaluadora - María Ruiz", java.time.LocalDate.now().minusDays(1), tipoDic, cmCordoba, new EstadoEnBolsinEnviado(), empOrigen);
+            Documentacion d1 = new Documentacion(1, 1001L, "Expediente Accidente Laboral - Juan Gómez", java.time.LocalDate.now().minusDays(2), tipoExp, cmCordoba, new EnBolsinEnviado(), empOrigen);
+            Documentacion d2 = new Documentacion(2, 1002L, "Dictamen Comisión Evaluadora - María Ruiz", java.time.LocalDate.now().minusDays(1), tipoDic, cmCordoba, new EnBolsinEnviado(), empOrigen);
 
             Remito r1 = new Remito(1, 5001L, LocalDateTime.now().minusHours(3), empOrigen, cmVillaMaria);
             r1.setEstado(new EstadoRemitoEnBolsinEnviado());
@@ -76,7 +76,7 @@ public class Main {
             bolsines.add(b1);
 
             // Bolsín 2 para probar alternativas
-            Documentacion d3 = new Documentacion(3, 1003L, "Resonancia Columna Lumbar - Pedro Rossi", java.time.LocalDate.now().minusDays(1), tipoExp, cmCordoba, new EstadoEnBolsinEnviado(), empOrigen);
+            Documentacion d3 = new Documentacion(3, 1003L, "Resonancia Columna Lumbar - Pedro Rossi", java.time.LocalDate.now().minusDays(1), tipoExp, cmCordoba, new EnBolsinEnviado(), empOrigen);
             Remito r2 = new Remito(2, 6001L, LocalDateTime.now().minusHours(2), empOrigen, cmVillaMaria);
             r2.setEstado(new EstadoRemitoEnBolsinEnviado());
             r2.agregarDetalle(new DetalleRemito(3, 1, "Estudio médico", d3));
@@ -132,16 +132,16 @@ public class Main {
         catalogo.add(new EstadoRemitoRecibidoYAceptado());
         catalogo.add(new EstadoRemitoCancelado());
 
-        // Estados Documentación (Patrón State)
-        catalogo.add(new EstadoRegistrada());
-        catalogo.add(new EstadoEnRemito());
-        catalogo.add(new EstadoEnBolsinSaliente());
-        catalogo.add(new EstadoEnBolsinEnviado());
-        catalogo.add(new EstadoRecibidaYAceptada());
-        catalogo.add(new EstadoNoRecibido());
-        catalogo.add(new EstadoRecibidaYRechazada());
-        catalogo.add(new EstadoParaRedirigir());
-        catalogo.add(new EstadoEnBaja());
+        // Estados Documentación (Patrón State Grupo 8)
+        catalogo.add(new Registrada());
+        catalogo.add(new EnRemito());
+        catalogo.add(new EnBolsinSaliente());
+        catalogo.add(new EnBolsinEnviado());
+        catalogo.add(new RecibidaYAceptada());
+        catalogo.add(new NoRecibida());
+        catalogo.add(new RecibidaYRechazada());
+        catalogo.add(new ParaRedirigir());
+        catalogo.add(new DeBaja());
 
         return catalogo;
     }

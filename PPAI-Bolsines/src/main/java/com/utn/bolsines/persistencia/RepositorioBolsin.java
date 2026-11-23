@@ -517,17 +517,17 @@ public class RepositorioBolsin {
     }
 
     public static EstadoDocumentacion crearEstadoDocumentacion(String nombre) {
-        if (nombre == null) return new EstadoRegistrada();
+        if (nombre == null) return new Registrada();
         return switch (nombre.trim()) {
-            case "En Bolsín Enviado" -> new EstadoEnBolsinEnviado();
-            case "Recibida y Aceptada" -> new EstadoRecibidaYAceptada();
-            case "Recibida y Rechazada" -> new EstadoRecibidaYRechazada();
-            case "Para Redirigir" -> new EstadoParaRedirigir();
-            case "No Recibido", "No Recibida" -> new EstadoNoRecibido();
-            case "En Remito" -> new EstadoEnRemito();
-            case "En Bolsín Saliente" -> new EstadoEnBolsinSaliente();
-            case "En Baja" -> new EstadoEnBaja();
-            default -> new EstadoRegistrada();
+            case "En Bolsín Enviado" -> new EnBolsinEnviado();
+            case "Recibida y Aceptada" -> new RecibidaYAceptada();
+            case "Recibida y Rechazada" -> new RecibidaYRechazada();
+            case "Para Redirigir" -> new ParaRedirigir();
+            case "No Recibido", "No Recibida" -> new NoRecibida();
+            case "En Remito" -> new EnRemito();
+            case "En Bolsín Saliente" -> new EnBolsinSaliente();
+            case "En Baja", "De Baja" -> new DeBaja();
+            default -> new Registrada();
         };
     }
 }

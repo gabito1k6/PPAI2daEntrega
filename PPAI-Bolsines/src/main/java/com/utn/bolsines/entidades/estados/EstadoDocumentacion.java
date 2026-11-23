@@ -1,39 +1,63 @@
 package com.utn.bolsines.entidades.estados;
 
+import com.utn.bolsines.entidades.CambioEstadoDocumentacion;
 import com.utn.bolsines.entidades.Documentacion;
 import com.utn.bolsines.entidades.Empleado;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * ============================================================================
  * CLASE ABSTRACTA: EstadoDocumentacion (PATRÓN GoF STATE)
+ * Diagrama de Clases Grupo 8 - Rediseño State Pattern
  * ============================================================================
- * Define la interfaz de comportamiento para la máquina de estados de la entidad
- * Documentacion (Contexto), de acuerdo a la Corrección 3 de DSI.
+ * Define el contrato y comportamiento por defecto de la máquina de estados
+ * para la entidad Documentacion (Contexto).
  * 
- * TIPO DE RELACIÓN Y HERENCIA:
- * - Es una CLASE ABSTRACTA ('abstract class').
- * - Implementa ('implements') la interfaz polimórfica 'Estado'.
- * - Es la superclase de la que HEREDAN ('extends') todos los Estados Concretos:
- *     * EstadoRegistrada
- *     * EstadoEnRemito
- *     * EstadoEnBolsinSaliente
- *     * EstadoEnBolsinEnviado (Estado activo en CU 28)
- *     * EstadoRecibidaYAceptada (Flujo Básico CU 28)
- *     * EstadoNoRecibido (Flujo Alternativo A3)
- *     * EstadoRecibidaYRechazada (Flujo Alternativo A4)
- *     * EstadoParaRedirigir (Flujo Alternativo A5)
- *     * EstadoEnBaja
+ * ATRIBUTOS SEGÚN DIAGRAMA DE CLASES:
+ * - nombre: string
+ * - descripcion: string
  * 
- * MECANISMO DE CONTROL DE TRANSICIONES:
- * Por defecto, todos los métodos lanzan UnsupportedOperationException.
- * Cada Estado Concreto SOBREESCRIBE (@Override) únicamente las transiciones
- * válidas según el diagrama de la Máquina de Estados (Grupo 8).
+ * OPERACIONES SEGÚN DIAGRAMA DE CLASES:
+ * - registrar(): void
+ * - registrarEnRemito(): void
+ * - agregarEnBolsin(): void
+ * - modificar(): void
+ * - darDeBaja(): void
+ * - recibir(this: Documentacion, fechaHora: datetime, ce: CambioEstado[], responsable: Empleado): void
+ * - registrarFaltaDocumentacion(): void
+ * - redirigirBolsin(): void
+ * - registrarRetiro(): void
  */
 public abstract class EstadoDocumentacion implements Estado {
 
+    protected String nombre;
+    protected String descripcion;
+
+    public EstadoDocumentacion() {}
+
+    public EstadoDocumentacion(String nombre, String descripcion) {
+        this.nombre = nombre;
+        this.descripcion = descripcion;
+    }
+
     @Override
-    public abstract String getNombre();
+    public String getNombre() {
+        return nombre;
+    }
+
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
+    }
+
+    @Override
+    public String getDescripcion() {
+        return descripcion != null ? descripcion : nombre;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
 
     @Override
     public boolean esAmbitoDocumentacion() {
@@ -41,38 +65,137 @@ public abstract class EstadoDocumentacion implements Estado {
     }
 
     // =========================================================================
-    // MÉTODOS DEL PATRÓN STATE (TRANSICIONES DE LA MÁQUINA DE ESTADOS)
+    // MÉTODOS DEL PATRÓN GOF STATE (SEGÚN DIAGRAMA DE CLASES GRUPO 8)
     // =========================================================================
 
     /**
-     * Evento CU 28: Recepción conforme de la documentación.
-     * En 'EstadoEnBolsinEnviado' o 'EstadoParaRedirigir': transiciona a 'EstadoRecibidaYAceptada'.
+     * Operación del Diagrama de Clases:
+     * recibir(this: Documentacion, fechaHora: datetime, ce: CambioEstado[], responsable: Empleado): void
      */
-    public void recibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+    public void recibir(Documentacion contexto, LocalDateTime fechaHora, List<CambioEstadoDocumentacion> ce, Empleado responsable) {
         lanzarTransicionNoValida("recibir");
     }
 
+    public void recibir(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        recibir(contexto, fechaHora, contexto != null ? contexto.getHistorialEstados() : null, responsable);
+    }
+
+    public void recibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+        recibir(contexto, fechaHora, contexto != null ? contexto.getHistorialEstados() : null, responsable);
+    }
+
     public void recibir(Documentacion contexto) {
-        recibir(contexto, new EstadoRecibidaYAceptada(), LocalDateTime.now(), null);
+        recibir(contexto, LocalDateTime.now(), contexto != null ? contexto.getHistorialEstados() : null, null);
+    }
+
+    public void recibir() {
+        lanzarTransicionNoValida("recibir");
     }
 
     /**
-     * Evento CU 28 (Flujo A3): Documentación faltante.
-     * En 'EstadoEnBolsinEnviado': transiciona a 'EstadoNoRecibido'.
-     * Máquina de Estados: registrarFaltaDocumentacion().
+     * Operación del Diagrama de Clases: registrarFaltaDocumentacion()
      */
-    public void noRecibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("noRecibir / registrarFaltaDocumentacion");
-    }
-
     public void registrarFaltaDocumentacion(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        noRecibir(contexto, null, fechaHora, responsable);
+        lanzarTransicionNoValida("registrarFaltaDocumentacion");
+    }
+
+    public void registrarFaltaDocumentacion() {
+        lanzarTransicionNoValida("registrarFaltaDocumentacion");
+    }
+
+    public void noRecibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+        registrarFaltaDocumentacion(contexto, fechaHora, responsable);
     }
 
     /**
-     * Evento CU 28 (Flujo A4): Documentación que no corresponde al destino.
-     * En 'EstadoEnBolsinEnviado' o 'EstadoParaRedirigir': transiciona a 'EstadoRecibidaYRechazada'.
+     * Operación del Diagrama de Clases: redirigirBolsin()
      */
+    public void redirigirBolsin(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        lanzarTransicionNoValida("redirigirBolsin");
+    }
+
+    public void redirigirBolsin() {
+        lanzarTransicionNoValida("redirigirBolsin");
+    }
+
+    public void redirigir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
+        redirigirBolsin(contexto, fechaHora, responsable);
+    }
+
+    /**
+     * Operación del Diagrama de Clases: registrar()
+     */
+    public void registrar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        lanzarTransicionNoValida("registrar");
+    }
+
+    public void registrar() {
+        lanzarTransicionNoValida("registrar");
+    }
+
+    /**
+     * Operación del Diagrama de Clases: registrarEnRemito()
+     */
+    public void registrarEnRemito(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        lanzarTransicionNoValida("registrarEnRemito");
+    }
+
+    public void registrarEnRemito() {
+        lanzarTransicionNoValida("registrarEnRemito");
+    }
+
+    /**
+     * Operación del Diagrama de Clases: agregarEnBolsin()
+     */
+    public void agregarEnBolsin(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        lanzarTransicionNoValida("agregarEnBolsin");
+    }
+
+    public void agregarEnBolsin() {
+        lanzarTransicionNoValida("agregarEnBolsin");
+    }
+
+    /**
+     * Operación del Diagrama de Clases: modificar()
+     */
+    public void modificar(Documentacion contexto) {
+        lanzarTransicionNoValida("modificar");
+    }
+
+    public void modificar() {
+        lanzarTransicionNoValida("modificar");
+    }
+
+    /**
+     * Operación del Diagrama de Clases: darDeBaja()
+     */
+    public void darDeBaja(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        lanzarTransicionNoValida("darDeBaja");
+    }
+
+    public void darDeBaja() {
+        lanzarTransicionNoValida("darDeBaja");
+    }
+
+    public void registrarBaja(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        darDeBaja(contexto, fechaHora, responsable);
+    }
+
+    /**
+     * Operación del Diagrama de Clases: registrarRetiro()
+     */
+    public void registrarRetiro(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        lanzarTransicionNoValida("registrarRetiro");
+    }
+
+    public void registrarRetiro() {
+        lanzarTransicionNoValida("registrarRetiro");
+    }
+
+    public void enviar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
+        registrarRetiro(contexto, fechaHora, responsable);
+    }
+
     public void rechazar(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
         lanzarTransicionNoValida("rechazar");
     }
@@ -81,84 +204,15 @@ public abstract class EstadoDocumentacion implements Estado {
         rechazar(contexto, null, fechaHora, responsable);
     }
 
-    /**
-     * Evento CU 28 (Flujo A5): Documentación para redirigir a otra área (CMC).
-     * En 'EstadoEnBolsinEnviado': transiciona a 'EstadoParaRedirigir'.
-     * Máquina de Estados: redirigirBolsin().
-     */
-    public void redirigir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("redirigir / redirigirBolsin");
-    }
-
-    public void redirigir(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        redirigir(contexto, null, fechaHora, responsable);
-    }
-
-    public void redirigirBolsin(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        redirigir(contexto, null, fechaHora, responsable);
-    }
-
-    /**
-     * Evento CU 15 / 16: Generar o Modificar Remito.
-     * En 'EstadoRegistrada' o 'EstadoEnBolsinSaliente': transiciona a 'EstadoEnRemito'.
-     */
-    public void registrarEnRemito(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("registrarEnRemito");
-    }
-
-    /**
-     * Evento CU 19 / 20: Generar o Modificar Bolsín.
-     * En 'EstadoEnRemito': transiciona a 'EstadoEnBolsinSaliente'.
-     */
-    public void agregarEnBolsin(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("agregarEnBolsin");
-    }
-
-    /**
-     * Evento CU 27: Registrar retiro de bolsines.
-     * En 'EstadoEnBolsinSaliente': transiciona a 'EstadoEnBolsinEnviado'.
-     */
-    public void registrarRetiro(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("registrarRetiro / enviar");
-    }
-
-    public void enviar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        registrarRetiro(contexto, fechaHora, responsable);
-    }
-
-    /**
-     * Evento CU 17 / 31: Cancelar Remito o Registrar Revisión.
-     * En 'EstadoEnRemito' o 'EstadoNoRecibido': vuelve a 'EstadoRegistrada'.
-     */
-    public void registrar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("registrar");
-    }
-
     public void generar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("generar");
-    }
-
-    /**
-     * Evento CU 9: Eliminar documentación.
-     * En 'EstadoRegistrada' o 'EstadoNoRecibido': transiciona a 'EstadoEnBaja'.
-     */
-    public void darDeBaja(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("darDeBaja / registrarBaja");
-    }
-
-    public void registrarBaja(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        darDeBaja(contexto, fechaHora, responsable);
-    }
-
-    public void modificar(Documentacion contexto) {
-        lanzarTransicionNoValida("modificar");
+        registrar(contexto, fechaHora, responsable);
     }
 
     public void darBajaBolsin(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("darBajaBolsin");
+        darDeBaja(contexto, fechaHora, responsable);
     }
 
-    private void lanzarTransicionNoValida(String evento) {
+    protected void lanzarTransicionNoValida(String evento) {
         throw new UnsupportedOperationException(
                 "Transición '" + evento + "' no válida desde el estado actual: [" + getNombre() + "].");
     }

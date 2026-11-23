@@ -197,41 +197,72 @@ public class Bolsin {
     }
 
     // =========================================================================
-    // REALIZACIÓN DEL CU 28: RECEPCIÓN
+    // REALIZACIÓN DEL CU 28: RECEPCIÓN (PATRÓN STATE GRUPO 8)
     // =========================================================================
 
     /**
-     * Método del Diagrama de Clases y Secuencias: recibir()
-     * Actualiza el bolsín y propaga la recepción en cascada a sus remitos.
+     * Operación del Diagrama de Clases y Secuencias (Patrón State Grupo 8):
+     * recibir(fechaHora: datetime, responsable: Empleado): void
+     * 1. actual:CambioEstadoBolsin.setFechaHoraFin(fechaHoraFin)
+     * 2. Loop para cada remito del bolsín -> remito.recibirYAceptar(fechaHora, responsable)
+     */
+    public void recibir(LocalDateTime fechaHora, Empleado responsable) {
+        LocalDateTime ahora = (fechaHora != null) ? fechaHora : LocalDateTime.now();
+
+        // 1. Cerrar cambio de estado actual de bolsín
+        CambioEstadoBolsin ceActual = buscarCambioEstadoActual();
+        if (ceActual != null) {
+            ceActual.setFechaHoraFin(ahora);
+        }
+
+        // 2. Propagar a cada remito
+        if (this.remitos != null) {
+            for (Remito r : remitos) {
+                r.recibirYAceptar(ahora, responsable);
+            }
+        }
+    }
+
+    /**
+     * Sobrecarga para compatibilidad previa:
      */
     public void recibir(EstadoBolsin nuevoEstadoBolsin, EstadoRemito nuevoEstadoRemito,
                         EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
+        recibir(fechaHora, responsable);
         crearCEBolsin(nuevoEstadoBolsin, fechaHora, responsable);
-        actualizarARecibidosYAceptados(nuevoEstadoRemito, nuevoEstadoDoc, fechaHora, responsable);
     }
 
     public void recibirConAlternativas(EstadoBolsin nuevoEstadoBolsin, EstadoRemito nuevoEstadoRemito,
                                        EstadoDocumentacion estadoDocAceptada, EstadoDocumentacion estadoDocAlternativo,
                                        List<Documentacion> docsAfectados, int opcion,
                                        LocalDateTime fechaHora, Empleado responsable) {
-        crearCEBolsin(nuevoEstadoBolsin, fechaHora, responsable);
+        LocalDateTime ahora = (fechaHora != null) ? fechaHora : LocalDateTime.now();
+
+        CambioEstadoBolsin ceActual = buscarCambioEstadoActual();
+        if (ceActual != null) {
+            ceActual.setFechaHoraFin(ahora);
+        }
 
         if (this.remitos != null) {
             for (Remito r : remitos) {
-                r.setEstado(nuevoEstadoRemito);
+                if (nuevoEstadoRemito != null) {
+                    r.setEstado(nuevoEstadoRemito);
+                } else {
+                    r.setEstado(new com.utn.bolsines.entidades.estados.EstadoRemitoRecibidoYAceptado());
+                }
                 for (DetalleRemito det : r.getDetalles()) {
                     Documentacion doc = det.getDocumentacion();
                     if (doc != null) {
                         boolean esAfectado = docsAfectados != null && docsAfectados.contains(doc);
                         if (esAfectado) {
                             switch (opcion) {
-                                case 2 -> doc.noRecibir(estadoDocAlternativo, fechaHora, responsable);
-                                case 3 -> doc.rechazar(estadoDocAlternativo, fechaHora, responsable);
-                                case 4 -> doc.redirigir(estadoDocAlternativo, fechaHora, responsable);
-                                default -> doc.recibir(estadoDocAlternativo, fechaHora, responsable);
+                                case 2 -> doc.registrarFaltaDocumentacion(ahora, responsable);
+                                case 3 -> doc.rechazar(estadoDocAlternativo, ahora, responsable);
+                                case 4 -> doc.redirigirBolsin(ahora, responsable);
+                                default -> doc.recibir(ahora, responsable);
                             }
                         } else {
-                            doc.recibir(estadoDocAceptada, fechaHora, responsable);
+                            doc.recibir(ahora, responsable);
                         }
                     }
                 }
@@ -306,6 +337,19 @@ public class Bolsin {
     public List<Remito> getRemitos() { return remitos; }
 
     public List<CambioEstadoBolsin> getHistorialEstados() { return historialEstados; }
+
+    public void setCambioEstado(CambioEstadoBolsin ce) {
+        if (ce != null && !this.historialEstados.contains(ce)) {
+            this.historialEstados.add(ce);
+        }
+        if (ce != null && ce.getEstado() != null) {
+            this.estadoActual = ce.getEstado();
+        }
+    }
+
+    public void setEstado(EstadoBolsin estado) {
+        this.estadoActual = estado;
+    }
 
     public EstadoBolsin getEstadoActual() { return obtenerEstadoActual(); }
     public void setEstadoActual(EstadoBolsin estadoActual) { this.estadoActual = estadoActual; }

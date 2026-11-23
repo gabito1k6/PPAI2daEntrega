@@ -1,8 +1,8 @@
 package com.utn.bolsines.pantallas;
 
 import com.utn.bolsines.entidades.*;
+import com.utn.bolsines.entidades.estados.EnBolsinEnviado;
 import com.utn.bolsines.entidades.estados.EstadoBolsinEnviado;
-import com.utn.bolsines.entidades.estados.EstadoEnBolsinEnviado;
 import com.utn.bolsines.entidades.estados.EstadoRemitoEnBolsinEnviado;
 import com.utn.bolsines.persistencia.RepositorioBolsin;
 
@@ -216,7 +216,7 @@ public class DialogoCrearBolsin extends JDialog {
                     LocalDate.now(),
                     tipoDoc,
                     cmOri,
-                    new EstadoEnBolsinEnviado(),
+                    new EnBolsinEnviado(),
                     emisor
             );
 

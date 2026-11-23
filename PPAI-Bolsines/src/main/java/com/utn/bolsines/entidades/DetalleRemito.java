@@ -6,19 +6,26 @@ import java.time.LocalDateTime;
 /**
  * ============================================================================
  * ENTIDAD: DetalleRemito (<<entity>>)
+ * Diagrama de Clases y Diagrama de Secuencia Grupo 8 - Rediseño State Pattern
  * ============================================================================
  * Renglón de detalle dentro de un Remito.
  * 
- * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
- * - Asociación simple (1 a 1) con Documentacion (rol: 'documentacion'):
- *     Vincula un documento físico particular con el remito.
- * - Pertenece a un Remito contenedor (1 Remito contiene 1..* DetalleRemito).
+ * ATRIBUTOS SEGÚN DIAGRAMA DE CLASES:
+ * - areaCMCDestino: string
+ * 
+ * OPERACIONES SEGÚN DIAGRAMA DE CLASES:
+ * - + actualizarEstadoDoc(fechaHora: datetime, responsable: Empleado): void
+ * 
+ * SECUENCIA EN CU 28:
+ * Remito llama a actualizarEstadoDoc(fechaHora, responsable).
+ * DetalleRemito propaga hacia Documentacion.recibir(fechaHora, responsable).
  */
 public class DetalleRemito {
 
     private int id;
     private int cantidad;
     private String descripcion;
+    private String areaCMCDestino; // Atributo según Diagrama de Clases Grupo 8
     private Documentacion documentacion; // Rol: 'documentacion' (1 a 1)
 
     public DetalleRemito() {}
@@ -30,13 +37,42 @@ public class DetalleRemito {
         this.documentacion = documentacion;
     }
 
+    public DetalleRemito(int id, int cantidad, String descripcion, String areaCMCDestino, Documentacion documentacion) {
+        this.id = id;
+        this.cantidad = cantidad;
+        this.descripcion = descripcion;
+        this.areaCMCDestino = areaCMCDestino;
+        this.documentacion = documentacion;
+    }
+
     // =========================================================================
     // MÉTODOS DEL DIAGRAMA DE CLASES Y SECUENCIAS (GRUPO 8)
     // =========================================================================
 
     /**
+     * Operación del Diagrama de Clases y Secuencias (Patrón State Grupo 8):
+     * actualizarEstadoDoc(fechaHora: datetime, responsable: Empleado): void
+     * Propaga la recepción hacia el contexto Documentación.
+     */
+    public void actualizarEstadoDoc(LocalDateTime fechaHora, Empleado responsable) {
+        if (documentacion != null) {
+            documentacion.recibir(fechaHora, responsable);
+        }
+    }
+
+    /**
+     * Sobrecarga para compatibilidad con firmas anteriores:
+     */
+    public void actualizarEstadoDoc(EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
+        actualizarEstadoDoc(fechaHora, responsable);
+    }
+
+    public void recibirYAceptar(EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
+        actualizarEstadoDoc(fechaHora, responsable);
+    }
+
+    /**
      * Método del Diagrama de Clases y Secuencias: obtenerDatosDetalle()
-     * Obtiene la descripción textual del documento contenido en el detalle.
      */
     public String obtenerDatosDetalle() {
         if (documentacion != null) {
@@ -49,21 +85,6 @@ public class DetalleRemito {
         return obtenerDatosDetalle();
     }
 
-    /**
-     * Método del Diagrama de Clases y Secuencias: actualizarEstadoDoc()
-     * Propaga la recepción hacia el contexto de Documentacion, el cual delegará
-     * en su estado actual (Patrón GoF State).
-     */
-    public void actualizarEstadoDoc(EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
-        if (documentacion != null) {
-            documentacion.recibir(nuevoEstadoDoc, fechaHora, responsable);
-        }
-    }
-
-    public void recibirYAceptar(EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
-        actualizarEstadoDoc(nuevoEstadoDoc, fechaHora, responsable);
-    }
-
     // Getters y Setters
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
@@ -74,11 +95,15 @@ public class DetalleRemito {
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
 
+    public String getAreaCMCDestino() { return areaCMCDestino; }
+    public void setAreaCMCDestino(String areaCMCDestino) { this.areaCMCDestino = areaCMCDestino; }
+
     public Documentacion getDocumentacion() { return documentacion; }
     public void setDocumentacion(Documentacion documentacion) { this.documentacion = documentacion; }
 
     @Override
     public String toString() {
-        return "DetalleRemito [cant=" + cantidad + ", doc=" + (documentacion != null ? documentacion.getAsunto() : "null") + "]";
+        return "DetalleRemito [cant=" + cantidad + ", doc=" + (documentacion != null ? documentacion.getAsunto() : "null") +
+                (areaCMCDestino != null ? ", areaCMC=" + areaCMCDestino : "") + "]";
     }
 }

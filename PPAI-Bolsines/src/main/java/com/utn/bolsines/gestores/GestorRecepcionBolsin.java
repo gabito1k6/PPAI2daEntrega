@@ -319,29 +319,41 @@ public class GestorRecepcionBolsin {
 
     /**
      * Método del Diagrama de Secuencias: tomarConfirmacion()
-     * Registra la confirmación del actor y dispara la actualización de estados.
+     * Implementación exacta del flujo rediseñado con Patrón State (Grupo 8).
+     * 1. buscarEstadoRecibidoCMDestino(): Estado
+     * 2. buscarEstadoRecibidoYAceptado(): Estado
+     * 3. getFechaHoraActual(): datetime
+     * 4. crearCEBolsin(): void
+     * 5. bolsinSeleccionado.recibir(fechaHora, responsable): void
+     *    -> bolsin cierra CE anterior y propaga a remitos
+     *    -> remito propaga a detalleRemito
+     *    -> detalleRemito propaga a documentacion
+     *    -> documentacion delega a su estado actual (:EnBolsinEnviado)
+     *    -> :EnBolsinEnviado crea RecibidaYAceptada, cierra CE anterior y crea nuevo CE
      */
     public void tomarConfirmacion() {
         this.confirmacionRecepcion = true;
 
-        // 1. Obtener fecha y hora actual del sistema
-        this.fechaHoraActual = getFechaHoraActual();
-
-        // 2. Búsqueda de objetos Estado en el catálogo (Corrección 6 de DSI)
+        // 1. Búsqueda de objetos Estado para Bolsín y Remito en el catálogo
         this.nuevoEstadoBolsin = buscarEstadoRecibidoCMDestino();
         this.nuevoEstadoRemito = buscarEstadoRecibidoYAceptado();
-        buscarEstadosDocumentacion();
 
-        // 3. [PATRÓN STATE] Actualizar estados de Bolsín, Remitos y Documentaciones
+        // 2. Obtener fecha y hora actual del sistema
+        this.fechaHoraActual = getFechaHoraActual();
+
+        // 3. Crear Cambio de Estado de Bolsín
+        crearCEBolsin();
+
+        // 4. [PATRÓN GOF STATE]: Propagación de recepción desde Bolsín a Documentación
         actualizarEstados();
 
-        // 4. Persistir los cambios en la base de datos relacional SQLite
+        // 5. Persistir los cambios en la base de datos relacional SQLite
         guardarEnBaseDeDatos();
 
-        // 5. Paso 12: CU 29 Notificar recepción a la Comisión Médica de origen
+        // 6. Paso 12: CU 29 Notificar recepción a la Comisión Médica de origen
         llamarCU29NotifRecepcionBolsin();
 
-        // 6. Notificar éxito al actor en la interfaz frontera y finalizar CU
+        // 7. Notificar éxito al actor en la interfaz frontera y finalizar CU
         if (pantalla != null) {
             String detalleOpcion = switch (opcionSelecc) {
                 case 1 -> "Flujo Básico: Contenido íntegro recibido y aceptado.";
@@ -386,32 +398,12 @@ public class GestorRecepcionBolsin {
                 return (EstadoDocumentacion) e;
             }
         }
-        return new EstadoRecibidaYAceptada();
-    }
-
-    private void buscarEstadosDocumentacion() {
-        this.nuevoEstadoDocAceptada = buscarEstadoRecibidaYAceptada();
-
-        for (Estado e : catalogoEstados) {
-            if (e.esAmbitoDocumentacion()) {
-                if (e.esNoRecibido()) {
-                    this.nuevoEstadoDocNoRecibida = (EstadoDocumentacion) e;
-                } else if (e.esRecibidaYRechazada()) {
-                    this.nuevoEstadoDocRechazada = (EstadoDocumentacion) e;
-                } else if (e.esParaRedirigir()) {
-                    this.nuevoEstadoDocParaRedirigir = (EstadoDocumentacion) e;
-                }
-            }
-        }
-        if (nuevoEstadoDocNoRecibida == null) nuevoEstadoDocNoRecibida = new EstadoNoRecibido();
-        if (nuevoEstadoDocRechazada == null) nuevoEstadoDocRechazada = new EstadoRecibidaYRechazada();
-        if (nuevoEstadoDocParaRedirigir == null) nuevoEstadoDocParaRedirigir = new EstadoParaRedirigir();
+        return new RecibidaYAceptada();
     }
 
     public void buscarEstados() {
         this.nuevoEstadoBolsin = buscarEstadoRecibidoCMDestino();
         this.nuevoEstadoRemito = buscarEstadoRecibidoYAceptado();
-        buscarEstadosDocumentacion();
     }
 
     // =========================================================================
@@ -424,42 +416,42 @@ public class GestorRecepcionBolsin {
      * - La Documentación asociada pasa a Recibida y Aceptada (o estado alternativo),
      *   registrando el empleado responsable.
      * 
-     * DELEGACIÓN DEL PATRÓN STATE:
-     * En lugar de condicionales (if/switch) dentro del gestor o entidades,
-     * bolsin.recibir(...) propaga la llamada a Remito -> DetalleRemito -> Documentacion.
-     * Y Documentacion DELEGA su transición a su objeto 'estadoActual' polimórfico.
+     * DELEGACIÓN DEL PATRÓN STATE (GRUPO 8):
+     * El Gestor NO busca estados de documentación en el catálogo.
+     * Invoca bolsinSeleccionado.recibir(fechaHoraActual, usuarioLogueado).
+     * El estado actual :EnBolsinEnviado es quien instancia RecibidaYAceptada,
+     * cierra el CambioEstado anterior y crea el nuevo CambioEstado.
      */
     public void actualizarEstados() {
         if (bolsinSeleccionado == null) return;
 
-        EstadoDocumentacion estadoAlternativo = switch (opcionSelecc) {
-            case 2 -> nuevoEstadoDocNoRecibida;
-            case 3 -> nuevoEstadoDocRechazada;
-            case 4 -> nuevoEstadoDocParaRedirigir;
-            default -> nuevoEstadoDocAceptada;
-        };
-
         if (opcionSelecc == 1 || documentacionesObservadas.isEmpty()) {
-            // Flujo básico: todo conforme
-            bolsinSeleccionado.recibir(
-                    nuevoEstadoBolsin,
-                    nuevoEstadoRemito,
-                    nuevoEstadoDocAceptada,
-                    fechaHoraActual,
-                    usuarioLogueado
-            );
+            // Flujo básico: bolsinSeleccionado.recibir(fechaHora, responsable)
+            bolsinSeleccionado.recibir(fechaHoraActual, usuarioLogueado);
         } else {
             // Flujos alternativos A3, A4, A5
             bolsinSeleccionado.recibirConAlternativas(
                     nuevoEstadoBolsin,
                     nuevoEstadoRemito,
-                    nuevoEstadoDocAceptada,
-                    estadoAlternativo,
+                    null,
+                    null,
                     documentacionesObservadas,
                     opcionSelecc,
                     fechaHoraActual,
                     usuarioLogueado
             );
+        }
+
+        // Generar nuevo CambioEstadoBolsin con new(fechaHoraInicio) y enlazarlo
+        CambioEstadoBolsin nuevoCEBolsin = new CambioEstadoBolsin(nuevoEstadoBolsin, fechaHoraActual, usuarioLogueado);
+        bolsinSeleccionado.setCambioEstado(nuevoCEBolsin);
+        bolsinSeleccionado.setEstado(nuevoEstadoBolsin);
+
+        // Asegurar que los remitos tengan el nuevo estado
+        if (bolsinSeleccionado.obtenerRemito() != null) {
+            for (Remito r : bolsinSeleccionado.obtenerRemito()) {
+                r.setEstado(nuevoEstadoRemito);
+            }
         }
 
         // Paso 11: Exhibir en consola la actualización completa con Legajo del Responsable
@@ -471,7 +463,7 @@ public class GestorRecepcionBolsin {
         System.out.println("  • Remitos asociados -> " + nuevoEstadoRemito.getNombre());
         for (Documentacion doc : bolsinSeleccionado.obtenerDocumentaciones()) {
             System.out.println("  • Documentación #" + doc.getNumeroIdentificador() + " (" + doc.getAsunto() + ") -> " +
-                    doc.getEstadoActual().getNombre() +
+                    (doc.getEstadoActual() != null ? doc.getEstadoActual().getNombre() : "N/A") +
                     " [Responsable: " + (usuarioLogueado != null ? usuarioLogueado.getNombre() + " " + usuarioLogueado.getApellido() +
                     " (Legajo: " + usuarioLogueado.getLegajo() + ", ID: " + usuarioLogueado.getId() + ")" : "N/A") + "]");
         }
@@ -480,7 +472,10 @@ public class GestorRecepcionBolsin {
 
     public void crearCEBolsin() {
         if (bolsinSeleccionado != null && nuevoEstadoBolsin != null) {
-            bolsinSeleccionado.crearCEBolsin(nuevoEstadoBolsin, fechaHoraActual, usuarioLogueado);
+            CambioEstadoBolsin ceActual = bolsinSeleccionado.buscarCambioEstadoActual();
+            if (ceActual != null) {
+                ceActual.setFechaHoraFin(fechaHoraActual);
+            }
         }
     }
 

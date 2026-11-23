@@ -2,7 +2,7 @@ package com.utn.bolsines.entidades;
 
 import com.utn.bolsines.entidades.estados.EstadoDocumentacion;
 import com.utn.bolsines.entidades.estados.EstadoRemito;
-import com.utn.bolsines.entidades.estados.EstadoRemitoCreado;
+import com.utn.bolsines.entidades.estados.EstadoRemitoRecibidoYAceptado;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,41 +10,46 @@ import java.util.List;
 /**
  * ============================================================================
  * ENTIDAD: Remito (<<entity>>)
+ * Diagrama de Clases y Diagrama de Secuencia Grupo 8 - Rediseño State Pattern
  * ============================================================================
- * Documento de envío que agrupa uno o más ítems de documentación dentro del bolsín.
+ * Representa el remito de entrega que acompaña la documentación en el bolsín.
  * 
- * TIPO DE RELACIONES SEGÚN EL DIAGRAMA DE CLASES (Grupo 8):
- * - Agregación / Composición (1 a 1..*) con DetalleRemito (rol: 'detalleRemito'):
- *     Cada remito contiene uno o más renglones de detalle.
- * - Asociación simple (1 a 1) con ComisionMedica (rol: 'destino'):
- *     Indica la sede destinataria hacia donde viaja la documentación.
- * - Asociación simple (1 a 1) con EstadoRemito (rol: 'estado'):
- *     Estado en el que se encuentra el remito (ej: 'En Bolsín Enviado', 'Recibido y Aceptado').
- * - Asociación con Empleado (rol: 'empleadoEmisor'):
- *     Empleado de la CM de origen que emitió el remito.
+ * ATRIBUTOS SEGÚN DIAGRAMA DE CLASES:
+ * - fecha: date
+ * - numero: int
+ * 
+ * OPERACIONES SEGÚN DIAGRAMA DE CLASES:
+ * - + getNumero(): int
+ * - + obtenerInfoDocumentacion(): List<String>
+ * - + recibirYAceptar(fechaHora: datetime, responsable: Empleado): void
+ * 
+ * SECUENCIA EN CU 28:
+ * Bolsin llama a recibirYAceptar(fechaHora, responsable).
+ * Remito actualiza su estado y en un bucle llama a detalle.actualizarEstadoDoc(fechaHora, responsable).
  */
 public class Remito {
 
     private int id;
-    private long numeroRemito; // 'numero' en Diagrama de Clases
-    private LocalDateTime fechaHoraAlta; // 'fecha' en Diagrama de Clases
+    private long numeroRemito; // 'numero: int' en Diagrama de Clases
+    private LocalDateTime fechaHoraAlta; // 'fecha: date' en Diagrama de Clases
     private Empleado empleadoEmisor;
     private ComisionMedica cmDestino;
-    private List<DetalleRemito> detalles; // Rol: 'detalleRemito' (1..*)
+    private List<DetalleRemito> detalles = new ArrayList<>();
     private EstadoRemito estado;
 
-    public Remito() {
-        this.detalles = new ArrayList<>();
-        this.estado = new EstadoRemitoCreado();
-    }
+    public Remito() {}
 
     public Remito(int id, long numeroRemito, LocalDateTime fechaHoraAlta, Empleado empleadoEmisor, ComisionMedica cmDestino) {
-        this();
+        this(id, numeroRemito, fechaHoraAlta, empleadoEmisor, cmDestino, null);
+    }
+
+    public Remito(int id, long numeroRemito, LocalDateTime fechaHoraAlta, Empleado empleadoEmisor, ComisionMedica cmDestino, EstadoRemito estado) {
         this.id = id;
         this.numeroRemito = numeroRemito;
         this.fechaHoraAlta = fechaHoraAlta;
         this.empleadoEmisor = empleadoEmisor;
         this.cmDestino = cmDestino;
+        this.estado = estado;
     }
 
     public void agregarDetalle(DetalleRemito detalle) {
@@ -56,15 +61,14 @@ public class Remito {
     // =========================================================================
 
     /**
-     * Método del Diagrama de Clases y Secuencias: getNumero()
+     * Operación del Diagrama de Clases: getNumero(): int
      */
     public long getNumero() {
         return numeroRemito;
     }
 
     /**
-     * Método del Diagrama de Clases y Secuencias: obtenerInfoDocumentacion()
-     * Itera por los detalles del remito para obtener el detalle de cada documentación.
+     * Operación del Diagrama de Clases y Secuencias: obtenerInfoDocumentacion()
      */
     public List<String> obtenerInfoDocumentacion() {
         List<String> docsInfo = new ArrayList<>();
@@ -79,18 +83,28 @@ public class Remito {
     }
 
     /**
-     * Método del Diagrama de Clases y Secuencias: recibirYAceptar()
-     * Transiciona el estado del remito a Recibido y Aceptado y delega la actualización
-     * a cada uno de sus detalles.
+     * Operación del Diagrama de Clases y Secuencias (Patrón State Grupo 8):
+     * recibirYAceptar(fechaHora: datetime, responsable: Empleado): void
+     * Actualiza el estado del Remito y propaga la recepción a cada DetalleRemito.
+     */
+    public void recibirYAceptar(LocalDateTime fechaHora, Empleado responsable) {
+        this.estado = new EstadoRemitoRecibidoYAceptado();
+        for (DetalleRemito det : detalles) {
+            det.actualizarEstadoDoc(fechaHora, responsable);
+        }
+    }
+
+    /**
+     * Sobrecarga para compatibilidad previa:
      */
     public void recibirYAceptar(EstadoRemito nuevoEstadoRemito, EstadoDocumentacion nuevoEstadoDoc, LocalDateTime fechaHora, Empleado responsable) {
-        if (this.estado != null) {
-            this.estado.recibirYAceptar(this, nuevoEstadoRemito, nuevoEstadoDoc, fechaHora, responsable);
-        } else {
+        if (nuevoEstadoRemito != null) {
             this.estado = nuevoEstadoRemito;
-            for (DetalleRemito det : detalles) {
-                det.actualizarEstadoDoc(nuevoEstadoDoc, fechaHora, responsable);
-            }
+        } else {
+            this.estado = new EstadoRemitoRecibidoYAceptado();
+        }
+        for (DetalleRemito det : detalles) {
+            det.actualizarEstadoDoc(fechaHora, responsable);
         }
     }
 
