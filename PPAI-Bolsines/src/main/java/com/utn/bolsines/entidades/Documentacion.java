@@ -106,10 +106,6 @@ public class Documentacion {
         obtenerEstadoActual().recibir(contexto != null ? contexto : this, fechaHora, ce, responsable);
     }
 
-    public void recibir(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        recibir(this, fechaHora, this.historialEstados, responsable);
-    }
-
     public void recibir() {
         recibir(LocalDateTime.now(), null);
     }
@@ -134,10 +130,6 @@ public class Documentacion {
      */
     public CambioEstadoDocumentacion crearCE(LocalDateTime fechaHoraInicio, Empleado responsable, EstadoDocumentacion estado) {
         return new CambioEstadoDocumentacion(fechaHoraInicio, responsable, estado);
-    }
-
-    public void crearCE(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        actualizarEstado(nuevoEstado, fechaHora, responsable);
     }
 
     /**
@@ -175,14 +167,6 @@ public class Documentacion {
         registrarFaltaDocumentacion(LocalDateTime.now(), null);
     }
 
-    public void noRecibir(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        registrarFaltaDocumentacion(fechaHora, responsable);
-    }
-
-    public void noRecibir(LocalDateTime fechaHora, Empleado responsable) {
-        registrarFaltaDocumentacion(fechaHora, responsable);
-    }
-
     /**
      * Operación del Diagrama de Clases: redirigirBolsin()
      */
@@ -194,23 +178,11 @@ public class Documentacion {
         redirigirBolsin(LocalDateTime.now(), null);
     }
 
-    public void redirigir(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        redirigirBolsin(fechaHora, responsable);
-    }
-
-    public void redirigir(LocalDateTime fechaHora, Empleado responsable) {
-        redirigirBolsin(fechaHora, responsable);
-    }
-
     /**
      * Rechazar documentación que no corresponde (Flujo A4)
      */
-    public void rechazar(EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        obtenerEstadoActual().rechazar(this, fechaHora, responsable);
-    }
-
     public void rechazar(LocalDateTime fechaHora, Empleado responsable) {
-        rechazar(null, fechaHora, responsable);
+        obtenerEstadoActual().rechazar(this, fechaHora, responsable);
     }
 
     /**

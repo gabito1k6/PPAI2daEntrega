@@ -57,13 +57,9 @@ public class GestorRecepcionBolsin {
     // Atributos adicionales de soporte
     private List<Documentacion> documentacionesObservadas = new ArrayList<>();
 
-    // Estados de destino (Corrección 6: Búsqueda polimórfica en catálogo)
+    // Estados de destino (Búsqueda en catálogo según Diagrama de Secuencias)
     private EstadoBolsin nuevoEstadoBolsin;
     private EstadoRemito nuevoEstadoRemito;
-    private EstadoDocumentacion nuevoEstadoDocAceptada;
-    private EstadoDocumentacion nuevoEstadoDocNoRecibida;
-    private EstadoDocumentacion nuevoEstadoDocRechazada;
-    private EstadoDocumentacion nuevoEstadoDocParaRedirigir;
 
     public GestorRecepcionBolsin(PantallaRecepcionBolsin pantalla, Sesion sesion,
                                 List<Bolsin> listaBolsines, List<Estado> catalogoEstados,
@@ -429,16 +425,12 @@ public class GestorRecepcionBolsin {
             // Flujo básico: bolsinSeleccionado.recibir(fechaHora, responsable)
             bolsinSeleccionado.recibir(fechaHoraActual, usuarioLogueado);
         } else {
-            // Flujos alternativos A3, A4, A5
+            // Flujos alternativos A3, A4, A5 (sin pasar estados desde el gestor)
             bolsinSeleccionado.recibirConAlternativas(
-                    nuevoEstadoBolsin,
-                    nuevoEstadoRemito,
-                    null,
-                    null,
-                    documentacionesObservadas,
-                    opcionSelecc,
                     fechaHoraActual,
-                    usuarioLogueado
+                    usuarioLogueado,
+                    documentacionesObservadas,
+                    opcionSelecc
             );
         }
 
@@ -546,7 +538,6 @@ public class GestorRecepcionBolsin {
     public LocalDateTime getFechaHoraActualRegistrada() { return fechaHoraActual; }
     public EstadoBolsin getNuevoEstadoBolsin() { return nuevoEstadoBolsin; }
     public EstadoRemito getNuevoEstadoRemito() { return nuevoEstadoRemito; }
-    public EstadoDocumentacion getNuevoEstadoDocAceptada() { return nuevoEstadoDocAceptada; }
     public List<Documentacion> getDocumentacionesObservadas() { return documentacionesObservadas; }
     public int getOpcionRecepcionSeleccionada() { return opcionSelecc; }
     public int getOpcionSelecc() { return opcionSelecc; }

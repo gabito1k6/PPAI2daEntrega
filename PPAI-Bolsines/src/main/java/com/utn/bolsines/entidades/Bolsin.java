@@ -232,10 +232,8 @@ public class Bolsin {
         crearCEBolsin(nuevoEstadoBolsin, fechaHora, responsable);
     }
 
-    public void recibirConAlternativas(EstadoBolsin nuevoEstadoBolsin, EstadoRemito nuevoEstadoRemito,
-                                       EstadoDocumentacion estadoDocAceptada, EstadoDocumentacion estadoDocAlternativo,
-                                       List<Documentacion> docsAfectados, int opcion,
-                                       LocalDateTime fechaHora, Empleado responsable) {
+    public void recibirConAlternativas(LocalDateTime fechaHora, Empleado responsable,
+                                       List<Documentacion> docsAfectados, int opcion) {
         LocalDateTime ahora = (fechaHora != null) ? fechaHora : LocalDateTime.now();
 
         CambioEstadoBolsin ceActual = buscarCambioEstadoActual();
@@ -245,11 +243,7 @@ public class Bolsin {
 
         if (this.remitos != null) {
             for (Remito r : remitos) {
-                if (nuevoEstadoRemito != null) {
-                    r.setEstado(nuevoEstadoRemito);
-                } else {
-                    r.setEstado(new com.utn.bolsines.entidades.estados.EstadoRemitoRecibidoYAceptado());
-                }
+                r.setEstado(new com.utn.bolsines.entidades.estados.EstadoRemitoRecibidoYAceptado());
                 for (DetalleRemito det : r.getDetalles()) {
                     Documentacion doc = det.getDocumentacion();
                     if (doc != null) {
@@ -257,7 +251,7 @@ public class Bolsin {
                         if (esAfectado) {
                             switch (opcion) {
                                 case 2 -> doc.registrarFaltaDocumentacion(ahora, responsable);
-                                case 3 -> doc.rechazar(estadoDocAlternativo, ahora, responsable);
+                                case 3 -> doc.rechazar(ahora, responsable);
                                 case 4 -> doc.redirigirBolsin(ahora, responsable);
                                 default -> doc.recibir(ahora, responsable);
                             }
@@ -268,6 +262,13 @@ public class Bolsin {
                 }
             }
         }
+    }
+
+    public void recibirConAlternativas(EstadoBolsin nuevoEstadoBolsin, EstadoRemito nuevoEstadoRemito,
+                                       EstadoDocumentacion estadoDocAceptada, EstadoDocumentacion estadoDocAlternativo,
+                                       List<Documentacion> docsAfectados, int opcion,
+                                       LocalDateTime fechaHora, Empleado responsable) {
+        recibirConAlternativas(fechaHora, responsable, docsAfectados, opcion);
     }
 
     public List<Documentacion> obtenerDocumentaciones() {

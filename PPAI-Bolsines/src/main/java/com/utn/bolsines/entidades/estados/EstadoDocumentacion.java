@@ -80,10 +80,6 @@ public abstract class EstadoDocumentacion implements Estado {
         recibir(contexto, fechaHora, contexto != null ? contexto.getHistorialEstados() : null, responsable);
     }
 
-    public void recibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        recibir(contexto, fechaHora, contexto != null ? contexto.getHistorialEstados() : null, responsable);
-    }
-
     public void recibir(Documentacion contexto) {
         recibir(contexto, LocalDateTime.now(), contexto != null ? contexto.getHistorialEstados() : null, null);
     }
@@ -103,10 +99,6 @@ public abstract class EstadoDocumentacion implements Estado {
         lanzarTransicionNoValida("registrarFaltaDocumentacion");
     }
 
-    public void noRecibir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        registrarFaltaDocumentacion(contexto, fechaHora, responsable);
-    }
-
     /**
      * Operación del Diagrama de Clases: redirigirBolsin()
      */
@@ -116,10 +108,6 @@ public abstract class EstadoDocumentacion implements Estado {
 
     public void redirigirBolsin() {
         lanzarTransicionNoValida("redirigirBolsin");
-    }
-
-    public void redirigir(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        redirigirBolsin(contexto, fechaHora, responsable);
     }
 
     /**
@@ -177,10 +165,6 @@ public abstract class EstadoDocumentacion implements Estado {
         lanzarTransicionNoValida("darDeBaja");
     }
 
-    public void registrarBaja(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        darDeBaja(contexto, fechaHora, responsable);
-    }
-
     /**
      * Operación del Diagrama de Clases: registrarRetiro()
      */
@@ -192,24 +176,11 @@ public abstract class EstadoDocumentacion implements Estado {
         lanzarTransicionNoValida("registrarRetiro");
     }
 
-    public void enviar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        registrarRetiro(contexto, fechaHora, responsable);
-    }
-
-    public void rechazar(Documentacion contexto, EstadoDocumentacion nuevoEstado, LocalDateTime fechaHora, Empleado responsable) {
-        lanzarTransicionNoValida("rechazar");
-    }
-
+    /**
+     * Flujo Alternativo A4: rechazar por no corresponder al destino
+     */
     public void rechazar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        rechazar(contexto, null, fechaHora, responsable);
-    }
-
-    public void generar(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        registrar(contexto, fechaHora, responsable);
-    }
-
-    public void darBajaBolsin(Documentacion contexto, LocalDateTime fechaHora, Empleado responsable) {
-        darDeBaja(contexto, fechaHora, responsable);
+        lanzarTransicionNoValida("rechazar");
     }
 
     protected void lanzarTransicionNoValida(String evento) {
